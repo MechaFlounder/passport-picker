@@ -264,9 +264,9 @@
             const width = document.getElementById('map-container').clientWidth;
             const height = document.getElementById('map-container').clientHeight;
             
-            projection = d3.geoMercator()
-                .scale(width / 6.5) 
-                .translate([width / 2, height / 1.5]);
+            projection = d3.geoEqualEarth()
+                .scale(width / 5.5) 
+                .translate([width / 2, height / 2]);
 
             path = d3.geoPath().projection(projection);
             
@@ -581,9 +581,25 @@
         }
 
         function handleMouseOut() { tooltip.style.opacity = 0; }
+        
         function handleMouseMove(event) {
-            tooltip.style.left = (event.pageX + 15) + 'px';
-            tooltip.style.top = (event.pageY + 15) + 'px';
+            const tooltipWidth = tooltip.offsetWidth;
+            const tooltipHeight = tooltip.offsetHeight;
+            const padding = 15;
+
+            let left = event.pageX + padding;
+            let top = event.pageY + padding;
+
+            if (left + tooltipWidth > window.innerWidth) {
+                left = event.pageX - tooltipWidth - padding;
+            }
+
+            if (top + tooltipHeight > window.innerHeight) {
+                top = event.pageY - tooltipHeight - padding;
+            }
+
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
         }
 
         async function switchToMapView() {

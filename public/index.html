@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PassportPicker - Visa-Free Travel Map</title>
+    <title>Passport Picker - Visa-Free Travel Map</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://d3js.org/topojson.v3.min.js"></script>
@@ -264,9 +264,9 @@
             const width = document.getElementById('map-container').clientWidth;
             const height = document.getElementById('map-container').clientHeight;
             
-            projection = d3.geoNaturalEarth1()
-                .scale(width / 5.5)
-                .translate([width / 2, height / 2]);
+            projection = d3.geoMercator()
+                .scale(width / 6.5) 
+                .translate([width / 2, height / 1.5]);
 
             path = d3.geoPath().projection(projection);
             
@@ -275,16 +275,6 @@
             });
             
             svg.call(zoom);
-
-            // Calculate the initial pan to center on Chad
-            const center = [width / 2, height / 2];
-            const chadCoords = projection([19, 15]); // Longitude, Latitude for Chad
-            
-            // Create a transform to move the map
-            const initialTransform = d3.zoomIdentity.translate(center[0] - chadCoords[0], center[1] - chadCoords[1]);
-            
-            // Apply the initial transform
-            svg.call(zoom.transform, initialTransform);
         }
 
         // --- CORE LOGIC ---
@@ -790,7 +780,7 @@
 
             setupMap();
             try {
-                const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json");
+                const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json");
 
                 // Convert TopoJSON to GeoJSON features to manipulate them
                 const countries = topojson.feature(world, world.objects.countries);
@@ -863,7 +853,7 @@
             if(projection) {
                 const newWidth = document.getElementById('map-container').clientWidth;
                 const newHeight = document.getElementById('map-container').clientHeight;
-                projection.scale(newWidth / 5.5).translate([newWidth / 2, newHeight / 2]);
+                projection.scale(newWidth / 6.5).translate([newWidth / 2, newHeight / 1.5]);
                 g.selectAll("path").attr("d", path);
             }
         });

@@ -790,7 +790,7 @@
 
             setupMap();
             try {
-                const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-10m.json");
+                const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json");
 
                 // Convert TopoJSON to GeoJSON features to manipulate them
                 const countries = topojson.feature(world, world.objects.countries);

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passport Picker - Visa-Free Travel Map</title>
+    <title>PassportPicker - Visa-Free Travel Map</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://d3js.org/topojson.v3.min.js"></script>
@@ -29,6 +29,7 @@
         /* Color classes for Visa Status view */
         .citizen { fill: #8E44AD; }
         .fom { fill: #1ABC9C; }
+        .permit { fill: #3498DB; } /* New color for travel permits */
         .vf { fill: #4CAF50; }
         .voa { fill: #FFC107; }
         .ev { fill: #2196F3; }
@@ -81,8 +82,8 @@
     <div id="landing-page" class="h-screen w-screen flex flex-col items-center bg-gray-100 p-4 transition-opacity duration-500">
         <div class="text-center max-w-4xl w-full flex flex-col h-full">
             <header class="py-4 flex-shrink-0">
-                <h1 class="text-5xl md:text-6xl font-bold text-gray-900">Passport Picker</h1>
-                <p class="text-xl text-gray-600 mt-4">Select your passports. The first one you pick will win tiebreaks.</p>
+                <h1 class="text-5xl md:text-6xl font-bold text-gray-900">PassportPicker</h1>
+                <p class="text-xl text-gray-600 mt-4">Select your passports. The first one you pick will be your primary.</p>
             </header>
             
             <div class="my-6 flex-shrink-0">
@@ -132,13 +133,13 @@
         </div>
 
         <!-- Map Overlays -->
-        <div class="absolute top-4 right-4 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-3">
+        <div class="absolute bottom-4 left-4 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-3">
              <div id="map-selected-flags" class="flex items-center gap-2">
                  <!-- Selected flags on map view appear here -->
             </div>
         </div>
 
-        <div class="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-2">
+        <div class="absolute bottom-4 right-4 bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-2">
             <div id="visa-status-legend" class="flex flex-wrap justify-center gap-2">
                  <!-- Legend items are now generated dynamically -->
             </div>
@@ -182,10 +183,11 @@
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
 
         // --- DATA MAPPING & PRIORITIES ---
-        const statusPriority = { "citizen": 0, "fom": 1, "vf": 2, "esta": 3, "eta": 3, "ev": 3, "voa": 4, "vr": 5, "denied": 6, "na": 7 };
+        const statusPriority = { "citizen": 0, "fom": 1, "permit": 2, "vf": 3, "esta": 4, "eta": 4, "ev": 4, "voa": 5, "vr": 6, "denied": 7, "na": 8 };
         const statusText = { 
             "citizen": "Citizen", 
-            "fom": "Freedom of Movement", 
+            "fom": "Freedom of Movement",
+            "permit": "Travel Permit Required",
             "vf": "Visa Not Required", 
             "voa": "Visa on Arrival", 
             "esta": "ESTA",
@@ -198,6 +200,7 @@
         const statusColors = { 
             "citizen": "#8E44AD", 
             "fom": "#1ABC9C", 
+            "permit": "#3498DB",
             "vf": "#4CAF50", 
             "voa": "#FFC107", 
             "esta": "#2196F3",
@@ -606,6 +609,21 @@
                 });
                 if (!response.ok) throw new Error(`Could not fetch visa data from server: ${response.statusText}`);
                 allVisaData = await response.json();
+
+                // --- INJECT SPECIAL CASE DATA for China/HK/Macau ---
+                const specialPermitData = { status: 'permit', stay: Infinity, visa: 'Travel Permit Required' };
+
+                if (allVisaData['HK']) {
+                    allVisaData['HK']['CN'] = { ...specialPermitData };
+                }
+                if (allVisaData['MO']) {
+                    allVisaData['MO']['CN'] = { ...specialPermitData };
+                }
+                if (allVisaData['CN']) {
+                    allVisaData['CN']['HK'] = { ...specialPermitData };
+                    allVisaData['CN']['MO'] = { ...specialPermitData };
+                }
+                // --- END INJECTION ---
             
                 updateLegends();
                 updateMapColors();

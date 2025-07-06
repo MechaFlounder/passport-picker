@@ -221,6 +221,9 @@
             mapView.style.opacity = '1';
             mapView.style.pointerEvents = 'auto';
 
+            // Give the browser a moment to render the now-visible map container
+            await new Promise(resolve => setTimeout(resolve, 50)); 
+
             if (!mapInitialized) {
                 loaderText.textContent = 'Loading Map...';
                 loader.style.display = 'flex';

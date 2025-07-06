@@ -287,7 +287,62 @@
         function assignPassportColors(passports) { /* ... same as before ... */ }
         function getVisaStatusFromString(visaInfo) { /* ... same as before ... */ }
         function getBestOption(countryCode, passports) { /* ... same as before ... */ }
-        function updateLegends() { /* ... same as before ... */ }
+        
+        function updateLegends() {
+            sessionPassportColors = assignPassportColors(selectedPassports);
+            visaStatusLegend.innerHTML = '';
+            bestPassportLegend.innerHTML = '';
+
+            if (currentView === 'visa') {
+                visaStatusLegend.style.display = 'flex';
+                bestPassportLegend.style.display = 'none';
+
+                const allStatuses = Object.keys(statusText);
+                const legendGroups = {};
+                
+                allStatuses.forEach(status => {
+                    const color = statusColors[status];
+                    const text = statusText[status];
+                    const priority = statusPriority[status];
+
+                    if (!color || !text || status === 'no-passport') return;
+
+                    if (!legendGroups[color]) {
+                        legendGroups[color] = { texts: new Set(), priority: priority };
+                    }
+                    legendGroups[color].texts.add(text);
+                });
+
+                const sortedGroups = Object.entries(legendGroups).map(([color, data]) => ({
+                    color,
+                    texts: Array.from(data.texts),
+                    priority: data.priority
+                })).sort((a, b) => a.priority - b.priority);
+
+                sortedGroups.forEach(group => {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'text-xs font-medium px-3 py-1 rounded-full';
+                    legendItem.style.backgroundColor = group.color;
+                    legendItem.style.color = getContrastingTextColor(group.color);
+                    legendItem.textContent = group.texts.join(' / ');
+                    visaStatusLegend.appendChild(legendItem);
+                });
+
+            } else { // Best Passport View
+                visaStatusLegend.style.display = 'none';
+                bestPassportLegend.style.display = 'flex';
+                selectedPassports.forEach((passport) => {
+                    const color = sessionPassportColors[passport];
+                    const passportName = countryCodeToNameMap[passport] || passport;
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full';
+                    legendItem.style.backgroundColor = color;
+                    legendItem.style.color = getContrastingTextColor(color);
+                    legendItem.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full" style="background-color: ${color};"></span>${passportName}`;
+                    bestPassportLegend.appendChild(legendItem);
+                });
+            }
+        }
 
         function updateMapColors() {
             if (!map || !map.isStyleLoaded()) return;
@@ -296,7 +351,6 @@
             const defaultColor = selectedPassports.length === 0 ? statusColors['no-passport'] : statusColors['na'];
 
             if (selectedPassports.length > 0) {
-                // Get all country codes from the map's source features
                 const features = map.querySourceFeatures('countries', { sourceLayer: 'country_boundaries' });
                 const allMapCodesA2 = new Set(features.map(f => f.properties.iso_3166_1));
 
@@ -378,7 +432,6 @@
                     allVisaData['CN']['MO'] = { ...specialPermitData };
                 }
             
-                sessionPassportColors = assignPassportColors(selectedPassports);
                 updateLegends();
                 updateMapColors();
                 updateMapSelectedFlags();
@@ -542,50 +595,6 @@
             }
             return bestOption;
         };
-        updateLegends = function() {
-            sessionPassportColors = assignPassportColors(selectedPassports);
-            visaStatusLegend.innerHTML = '';
-            if (currentView === 'visa') {
-                visaStatusLegend.style.display = 'flex';
-                bestPassportLegend.style.display = 'none';
-                const applicableStatuses = new Set();
-                if (selectedPassports.length > 0) { for (const passport of selectedPassports) { if (allVisaData[passport]) { for (const dest in allVisaData[passport]) { let status = allVisaData[passport][dest].status; if (status === 'na' && allVisaData[passport][dest].visa) { status = getVisaStatusFromString(allVisaData[passport][dest].visa); } if(status) applicableStatuses.add(status); } } } } 
-                else { Object.keys(statusText).forEach(s => applicableStatuses.add(s)); }
-                if(selectedPassports.length > 0) { applicableStatuses.add('citizen'); }
-                const legendGroups = {};
-                applicableStatuses.forEach(status => {
-                    const color = statusColors[status];
-                    const text = statusText[status];
-                    const priority = statusPriority[status];
-                    if (!color || !text) return;
-                    if (!legendGroups[color]) { legendGroups[color] = { texts: new Set(), priority: priority }; }
-                    legendGroups[color].texts.add(text);
-                });
-                const sortedGroups = Object.entries(legendGroups).map(([color, data]) => ({ color, texts: Array.from(data.texts), priority: data.priority })).sort((a, b) => a.priority - b.priority);
-                sortedGroups.forEach(group => {
-                    const legendItem = document.createElement('div');
-                    legendItem.className = 'text-xs font-medium px-3 py-1 rounded-full';
-                    legendItem.style.backgroundColor = group.color;
-                    legendItem.style.color = getContrastingTextColor(group.color);
-                    legendItem.textContent = group.texts.join(' / ');
-                    visaStatusLegend.appendChild(legendItem);
-                });
-            } else {
-                visaStatusLegend.style.display = 'none';
-                bestPassportLegend.style.display = 'flex';
-                bestPassportLegend.innerHTML = '';
-                selectedPassports.forEach((passport) => {
-                    const color = sessionPassportColors[passport];
-                    const passportName = countryCodeToNameMap[passport] || passport;
-                    const legendItem = document.createElement('div');
-                    legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full';
-                    legendItem.style.backgroundColor = color;
-                    legendItem.style.color = getContrastingTextColor(color);
-                    legendItem.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full" style="background-color: ${color};"></span>${passportName}`;
-                    bestPassportLegend.appendChild(legendItem);
-                });
-            }
-        };
         updateMapSelectedFlags = function() {
             mapSelectedFlags.innerHTML = '';
             selectedPassports.forEach(code => {
@@ -659,4 +668,4 @@
         initialize();
     </script>
 </body>
-</ht
+</html>

@@ -295,7 +295,29 @@
         const colorConverter = { /* ... same as before ... */ };
         function getContrastingTextColor(hex) { /* ... same as before ... */ }
         function assignPassportColors(passports) { /* ... same as before ... */ }
-        function getVisaStatusFromString(visaInfo) { /* ... same as before ... */ }
+        
+        function getVisaStatusFromString(visaInfo) {
+            if (!visaInfo) return 'na';
+            const lowerVisaInfo = visaInfo.toLowerCase();
+
+            // More specific checks first to avoid false positives.
+            if (lowerVisaInfo.startsWith('freedom of movement')) return 'fom';
+            if (lowerVisaInfo.startsWith('visa not required')) return 'vf';
+            if (lowerVisaInfo.startsWith('citizen')) return 'citizen';
+
+            // Broader checks for other categories
+            if (lowerVisaInfo.includes('visa on arrival') || lowerVisaInfo.includes('e-voa') || lowerVisaInfo.includes('entry permit on arrival') || lowerVisaInfo.includes('free visa on arrival')) return 'voa';
+            if (lowerVisaInfo.includes('esta')) return 'esta';
+            if (lowerVisaInfo.includes('eta') || lowerVisaInfo.includes('evisitor')) return 'eta';
+            if (lowerVisaInfo.includes('evisa') || lowerVisaInfo.includes('pre-enrollment') || lowerVisaInfo.includes('online visa required')) return 'ev';
+            if (lowerVisaInfo.includes('visa required') || lowerVisaInfo.includes('visa prior to arrival')) return 'vr';
+            if (lowerVisaInfo.includes('not admitted')) return 'denied';
+
+            // Fallback for cases where the specific checks might have missed
+            if (lowerVisaInfo.includes('freedom of movement')) return 'fom';
+
+            return 'na';
+        }
         
         function getBestOption(countryCode, passports) {
             let bestOption = { status: 'na', stay: -1, passport: null };

@@ -199,26 +199,31 @@
         function updateMapColors() {
             if (!mapInitialized) return;
             g.selectAll(".country")
-                .attr("class", d => {
+                .each(function(d) {
+                    const countryElement = d3.select(this);
                     const countryCode = getCountryCodeFromName(d.properties.name);
-                    if (!countryCode) return 'country na';
-                    if (selectedPassports.length === 0) return 'country no-passport';
+
+                    if (!countryCode) {
+                        countryElement.attr('class', 'country na').style('fill', null);
+                        return;
+                    }
+                    if (selectedPassports.length === 0) {
+                        countryElement.attr('class', 'country no-passport').style('fill', null);
+                        return;
+                    }
 
                     if (currentView === 'visa') {
                         const bestOption = getBestOption(countryCode, selectedPassports);
-                        return `country ${bestOption.status || 'na'}`;
+                        countryElement.attr('class', `country ${bestOption.status || 'na'}`).style('fill', null);
                     } else { // Best Passport View
-                        if (countryCode === 'AQ') return 'country na';
+                        if (countryCode === 'AQ') {
+                            countryElement.attr('class', 'country na').style('fill', null);
+                            return;
+                        }
                         const bestOption = getBestOption(countryCode, selectedPassports);
                         const color = sessionPassportColors[bestOption.passport] || statusColors.na;
-                        d3.select(this).style('fill', color);
-                        return 'country';
+                        countryElement.attr('class', 'country').style('fill', color);
                     }
-                })
-                .style('fill', function() {
-                    // Reset inline fill style for visa view so classes take over
-                    if (currentView === 'visa') return null;
-                    return d3.select(this).style('fill');
                 });
         }
 

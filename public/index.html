@@ -240,7 +240,7 @@
             // Fetch Mapbox token from backend
             let mapboxToken;
             try {
-                const response = await fetch('/api/mapbox-token');
+                const response = await fetch('/mapbox-token');
                 const data = await response.json();
                 mapboxToken = data.token;
                 if (!mapboxToken) throw new Error('Mapbox token not found');

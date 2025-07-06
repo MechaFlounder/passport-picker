@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Passport Picker - Visa-Free Travel Map</title>
-    <!-- Mapbox GL JS -->
-    <script src='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css' rel='stylesheet' />
-    <!-- TopoJSON for map data parsing -->
+    <!-- D3.js and related libraries -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <script src="https://d3js.org/d3-geo-projection.v4.min.js"></script>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,10 +19,29 @@
         #loader {
             transition: opacity 0.5s ease-out;
         }
-        /* Mapbox Attribution Control - Keep it visible */
-        .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right {
-            z-index: 10;
+        .country {
+            stroke: #666;
+            stroke-width: 0.5px;
+            transition: fill 0.3s ease;
         }
+        .country:hover {
+            stroke: #333;
+            stroke-width: 1.5px;
+        }
+        /* Color classes for Visa Status view */
+        .citizen { fill: #8E44AD; }
+        .fom { fill: #1ABC9C; }
+        .permit { fill: #3498DB; }
+        .vf { fill: #4CAF50; }
+        .voa { fill: #FFC107; }
+        .ev { fill: #2196F3; }
+        .eta { fill: #2196F3; }
+        .esta { fill: #2196F3; }
+        .vr { fill: #F44336; }
+        .denied { fill: #5D4037; }
+        .na { fill: #BDBDBD; }
+        .no-passport { fill: #E0E0E0; }
+
         /* Styles for the view toggle */
         .toggle-btn.active {
             background-color: #3B82F6;
@@ -153,15 +171,16 @@
         let currentView = 'visa';
         let sessionPassportColors = {};
         let selectedPassports = [];
-        let map; // Mapbox map object
         let mapInitialized = false; // Flag to track if map has been created
-        let hoveredCountryId = null; // To track hovered country
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
+
+        // D3 Map variables
+        let svg, g, projection, path, zoom;
 
         // --- DATA MAPPING & PRIORITIES ---
         const statusPriority = { "citizen": 0, "fom": 1, "permit": 2, "vf": 3, "esta": 4, "eta": 4, "ev": 4, "voa": 5, "vr": 6, "denied": 7, "na": 8 };
         const statusText = { "citizen": "Citizen", "fom": "Freedom of Movement", "permit": "Travel Permit Required", "vf": "Visa Not Required", "voa": "Visa on Arrival", "esta": "ESTA", "eta": "eTA", "ev": "e-Visa / Online", "vr": "Visa Required", "denied": "Not Admitted", "na": "No Data" };
-        const statusColors = { "citizen": "#8E44AD", "fom": "#1ABC9C", "permit": "#3498DB", "vf": "#4CAF50", "voa": "#FFC107", "esta": "#2196F3", "eta": "#2196F3", "ev": "#2196F3", "vr": "#F44336", "denied": "#5D4037", "na": "#BDBDBD" };
+        const statusColors = { "citizen": "#8E44AD", "fom": "#1ABC9C", "permit": "#3498DB", "vf": "#4CAF50", "voa": "#FFC107", "esta": "#2196F3", "eta": "#2196F3", "ev": "#2196F3", "vr": "#F44336", "denied": "#5D4037", "na": "#BDBDBD", "no-passport": "#E0E0E0" };
         
         const countryColorPalette = { 'US': { primary: '#0A3161', secondary: '#B31942' }, 'GB': { primary: '#CF142B', secondary: '#00247D' }, 'CA': { primary: '#FF0000', secondary: '#FFFFFF' }, 'AU': { primary: '#00008B', secondary: '#FFCD00' }, 'NZ': { primary: '#00247D', secondary: '#CF142B' }, 'DE': { primary: '#000000', secondary: '#FFCE00' }, 'FR': { primary: '#0055A4', secondary: '#EF4135' }, 'IT': { primary: '#009246', secondary: '#CE2B37' }, 'ES': { primary: '#C60B1E', secondary: '#FFC400' }, 'JP': { primary: '#BC002D', secondary: '#FFFFFF' }, 'CN': { primary: '#EE1C25', secondary: '#FFFF00' }, 'IN': { primary: '#FF9933', secondary: '#138808' }, 'BR': { primary: '#009B3A', secondary: '#FFDF00' }, 'RU': { primary: '#D52B1E', secondary: '#0039A6' }, 'ZA': { primary: '#007A4D', secondary: '#FFB612' }, 'IE': { primary: '#169B62', secondary: '#FF883E' }, 'CH': { primary: '#FF0000', secondary: '#FFFFFF' }, 'SE': { primary: '#006AA7', secondary: '#FFCD00' }, 'NO': { primary: '#EF2B2D', secondary: '#002868' }, 'KR': { primary: '#CD2E3A', secondary: '#0047A0' } };
         const countryAliases = { "US": ["usa", "america", "united states"], "GB": ["uk", "great britain", "england", "scotland", "wales", "britain"], "AE": ["uae"], "KR": ["south korea", "republic of korea"], "KP": ["north korea"], "RU": ["russia"], "CZ": ["czechia"], "CD": ["drc", "congo dem. rep."], "CG": ["congo"], "BS": ["the bahamas"], "DO": ["dr", "dominican rep."], "CF": ["car", "central african rep."], "ZA": ["sa"], "NZ": ["new zeland"] };
@@ -178,42 +197,33 @@
         function getBestOption(countryCode, passports) { let bestOption = { status: 'na', stay: -1, passport: null }; for (const passport of passports) { let visaInfo = allVisaData[passport]?.[countryCode] || { status: 'na', stay: 0 }; if (visaInfo.status === 'na' && visaInfo.visa) { const derivedStatus = getVisaStatusFromString(visaInfo.visa); if (derivedStatus !== 'na') { visaInfo = { ...visaInfo, status: derivedStatus }; } } const currentPriority = statusPriority[visaInfo.status]; const bestPriority = statusPriority[bestOption.status]; if (currentPriority < bestPriority) { bestOption = { ...visaInfo, passport }; } else if (currentPriority === bestPriority) { if (visaInfo.stay > bestOption.stay) { bestOption = { ...visaInfo, passport }; } } } return bestOption; }
         
         function updateMapColors() {
-            if (!map || !map.isStyleLoaded()) return;
+            if (!mapInitialized) return;
+            g.selectAll(".country")
+                .attr("class", d => {
+                    const countryCode = getCountryCodeFromName(d.properties.name);
+                    if (!countryCode) return 'country na';
+                    if (selectedPassports.length === 0) return 'country no-passport';
 
-            if (currentView === 'visa') {
-                const caseExpression = ['match', ['get', 'id']];
-                if(selectedPassports.length === 0){
-                    caseExpression.push([], '#E0E0E0');
-                } else {
-                    for (const countryCode in countryNameToCodeMap) {
-                        const code = countryNameToCodeMap[countryCode];
-                        const bestOption = getBestOption(code, selectedPassports);
-                        caseExpression.push(code, statusColors[bestOption.status] || '#BDBDBD');
+                    if (currentView === 'visa') {
+                        const bestOption = getBestOption(countryCode, selectedPassports);
+                        return `country ${bestOption.status || 'na'}`;
+                    } else { // Best Passport View
+                        if (countryCode === 'AQ') return 'country na';
+                        const bestOption = getBestOption(countryCode, selectedPassports);
+                        const color = sessionPassportColors[bestOption.passport] || statusColors.na;
+                        d3.select(this).style('fill', color);
+                        return 'country';
                     }
-                }
-                caseExpression.push('#BDBDBD'); // Default color
-                map.setPaintProperty('countries-fill', 'fill-color', caseExpression);
-
-            } else { // Best Passport View
-                 const caseExpression = ['match', ['get', 'id']];
-                 if (selectedPassports.length > 0) {
-                     for (const countryCode in countryNameToCodeMap) {
-                         const code = countryNameToCodeMap[countryCode];
-                         if (code === 'AQ') { 
-                            caseExpression.push('AQ', statusColors.na);
-                            continue;
-                         };
-                         const bestOption = getBestOption(code, selectedPassports);
-                         caseExpression.push(code, sessionPassportColors[bestOption.passport] || statusColors.na);
-                     }
-                 }
-                 caseExpression.push('#BDBDBD'); // Default
-                 map.setPaintProperty('countries-fill', 'fill-color', caseExpression);
-            }
+                })
+                .style('fill', function() {
+                    // Reset inline fill style for visa view so classes take over
+                    if (currentView === 'visa') return null;
+                    return d3.select(this).style('fill');
+                });
         }
 
         function updateLegends() { sessionPassportColors = assignPassportColors(selectedPassports); visaStatusLegend.innerHTML = ''; bestPassportLegend.innerHTML = ''; if (currentView === 'visa') { visaStatusLegend.style.display = 'flex'; bestPassportLegend.style.display = 'none'; const applicableStatuses = new Set(); if (selectedPassports.length > 0) { for (const passport of selectedPassports) { if (allVisaData[passport]) { for (const dest in allVisaData[passport]) { let status = allVisaData[passport][dest].status; if (status === 'na' && allVisaData[passport][dest].visa) { status = getVisaStatusFromString(allVisaData[passport][dest].visa); } if(status) applicableStatuses.add(status); } } } } else { Object.keys(statusText).forEach(s => applicableStatuses.add(s)); } if(selectedPassports.length > 0) { applicableStatuses.add('citizen'); } const legendGroups = {}; applicableStatuses.forEach(status => { const color = statusColors[status]; const text = statusText[status]; const priority = statusPriority[status]; if (!color || !text) return; if (!legendGroups[color]) { legendGroups[color] = { texts: new Set(), priority: priority }; } legendGroups[color].texts.add(text); }); const sortedGroups = Object.entries(legendGroups).map(([color, data]) => ({ color, texts: Array.from(data.texts), priority: data.priority })).sort((a, b) => a.priority - b.priority); sortedGroups.forEach(group => { const legendItem = document.createElement('div'); legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap'; legendItem.style.backgroundColor = group.color; legendItem.style.color = colorConverter.isColorTooSimilar(group.color, '#FFFFFF') ? '#000000' : '#FFFFFF'; legendItem.textContent = group.texts.join(' / '); visaStatusLegend.appendChild(legendItem); }); } else { visaStatusLegend.style.display = 'none'; bestPassportLegend.style.display = 'flex'; selectedPassports.forEach((passport) => { const color = sessionPassportColors[passport]; const passportName = countryCodeToNameMap[passport] || passport; const legendItem = document.createElement('div'); legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap'; legendItem.style.backgroundColor = color; legendItem.style.color = colorConverter.isColorTooSimilar(color, '#FFFFFF') ? '#000000' : '#FFFFFF'; legendItem.innerHTML = `<img src="https://flagcdn.com/w20/${passport.toLowerCase()}.png" class="h-4 w-6 mr-1.5 rounded-sm"> ${passportName}`; bestPassportLegend.appendChild(legendItem); }); } }
-        function generateInfoContent(countryCode) { if (selectedPassports.length === 0) return '<p class="text-gray-500">Select a passport to see visa info.</p>'; if (!countryCode || !allVisaData) return '<p class="text-gray-500">No visa data available for this country.</p>'; let results = []; let lookupCode = countryCode; if (countryCode === 'GL') lookupCode = 'DK'; if (countryCode === 'PR') lookupCode = 'US'; if (countryCode === 'NC') lookupCode = 'FR'; selectedPassports.forEach(passport => { const passportName = countryCodeToNameMap[passport] || passport; let visaInfo = allVisaData[passport]?.[lookupCode] || { status: 'na', stay: 0 }; if (visaInfo.status === 'na' && visaInfo.visa) { const derivedStatus = getVisaStatusFromString(visaInfo.visa); if (derivedStatus !== 'na') { visaInfo = { ...visaInfo, status: derivedStatus }; } } results.push({ passport: passportName, status: visaInfo.status, stay: visaInfo.stay, priority: statusPriority[visaInfo.status] }); }); results.sort((a, b) => { if (a.priority !== b.priority) return a.priority - b.priority; return b.stay - a.stay; }); let contentHTML = '<ul class="space-y-2">'; results.forEach((res, index) => { const isBest = index === 0 && res.status !== 'na'; let stayText = (res.status === 'citizen') ? 'Unlimited Stay' : (res.stay > 0 ? `${res.stay} days` : ''); contentHTML += `<li class="flex items-center ${isBest ? 'font-bold' : ''}"><span class="w-3 h-3 rounded-full mr-3" style="background-color:${statusColors[res.status]}"></span><span>${res.passport}: ${statusText[res.status]} ${stayText ? `(${stayText})` : ''}</span>${isBest ? '<span class="ml-auto text-xs bg-green-100 text-green-800 font-semibold px-2 py-0.5 rounded-full">Best</span>' : ''}</li>`; }); contentHTML += '</ul>'; return contentHTML; }
+        function generateInfoContent(countryCode) { if (selectedPassports.length === 0) return '<p class="text-gray-500">Select a passport to see visa info.</p>'; if (!countryCode || !allVisaData) return '<p class="text-gray-500">No visa data available for this country.</p>'; let results = []; let lookupCode = countryCode; if (countryCode === 'GL') lookupCode = 'DK'; if (countryCode === 'PR') lookupCode = 'US'; if (countryCode === 'NC') lookupCode = 'FR'; selectedPassports.forEach(passport => { const passportName = countryCodeToNameMap[passport] || passport; let visaInfo = allVisaData[passport]?.[lookupCode] || { status: 'na', stay: 0 }; if (visaInfo.status === 'na' && visaInfo.visa) { const derivedStatus = getVisaStatusFromString(visaInfo.visa); if (derivedStatus !== 'na') { visaInfo = { ...visaInfo, status: derivedStatus }; } } results.push({ passport: passportName, status: visaInfo.status, stay: visaInfo.stay, priority: statusPriority[visaInfo.status] }); }); results.sort((a, b) => { if (a.priority !== b.priority) return a.priority - b.priority; return b.stay - a.stay; }); let contentHTML = '<ul class="space-y-2">'; results.forEach((res, index) => { const isBest = index === 0 && res.status !== 'na'; let stayText = (res.status === 'citizen') ? 'Unlimited Stay' : (res.stay > 0 ? `${res.stay} days` : ''); contentHTML += `<li class="flex items-center ${isBest ? 'font-bold' : ''}"><span class="w-3 h-3 rounded-full mr-3 ${res.status}"></span><span>${res.passport}: ${statusText[res.status]} ${stayText ? `(${stayText})` : ''}</span>${isBest ? '<span class="ml-auto text-xs bg-green-100 text-green-800 font-semibold px-2 py-0.5 rounded-full">Best</span>' : ''}</li>`; }); contentHTML += '</ul>'; return contentHTML; }
         
         async function switchToMapView() {
             if (selectedPassports.length === 0) return;
@@ -222,10 +232,7 @@
             landingPage.style.pointerEvents = 'none';
             mapView.style.opacity = '1';
             mapView.style.pointerEvents = 'auto';
-
-            // Give the browser a moment to render the now-visible map container
-            await new Promise(resolve => setTimeout(resolve, 50)); 
-
+            
             if (!mapInitialized) {
                 loaderText.textContent = 'Loading Map...';
                 loader.style.display = 'flex';
@@ -246,7 +253,12 @@
                     return;
                 }
             } else {
-                map.resize();
+                 // If map is already initialized, just resize it
+                const width = document.getElementById('map-container').clientWidth;
+                const height = document.getElementById('map-container').clientHeight;
+                svg.attr('width', width).attr('height', height);
+                projection.scale(width / 5.5).translate([width / 2, height / 2]);
+                g.selectAll('path').attr('d', path);
             }
 
             loaderText.textContent = 'Loading Visa Data...';
@@ -284,108 +296,70 @@
 
         async function initializeMap() {
             return new Promise(async (resolve, reject) => {
-                let mapboxToken;
+                const mapContainer = document.getElementById('map-container');
+                const width = mapContainer.clientWidth;
+                const height = mapContainer.clientHeight;
+
+                projection = d3.geoEqualEarth()
+                    .scale(width / 5.5)
+                    .translate([width / 2, height / 2]);
+
+                path = d3.geoPath().projection(projection);
+
+                svg = d3.select("#map-container").append("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .style("cursor", "grab");
+                
+                g = svg.append("g");
+
+                zoom = d3.zoom().scaleExtent([1, 8]).on("zoom", (event) => {
+                    g.attr("transform", event.transform);
+                });
+                svg.call(zoom);
+
                 try {
-                    const response = await fetch('/mapbox-token');
-                    const data = await response.json();
-                    mapboxToken = data.token;
-                    if (!mapboxToken) throw new Error('Mapbox token not found');
-                } catch (error) {
-                    console.error("Failed to fetch Mapbox token:", error);
-                    alert("Could not retrieve Mapbox token. The map cannot be loaded.");
-                    reject(error);
-                    return;
-                }
-
-                mapboxgl.accessToken = mapboxToken;
-                map = new mapboxgl.Map({
-                    container: 'map-container',
-                    style: 'mapbox://styles/mapbox/light-v11',
-                    center: [0, 20],
-                    zoom: 1,
-                    projection: 'equalEarth'
-                });
-
-                map.on('load', async () => {
-                    try {
-                        const response = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json');
-                        const world = await response.json();
-                        const geojsonData = topojson.feature(world, world.objects.countries);
-                        
-                        map.addSource('countries', {
-                            'type': 'geojson',
-                            'data': geojsonData,
-                            'promoteId': 'id'
-                        });
-
-                        map.addLayer({
-                            'id': 'countries-fill',
-                            'type': 'fill',
-                            'source': 'countries',
-                            'paint': {
-                                'fill-color': '#E0E0E0',
-                                'fill-outline-color': '#666'
-                            }
-                        });
-
-                        map.addLayer({
-                            'id': 'countries-hover',
-                            'type': 'line',
-                            'source': 'countries',
-                            'paint': {
-                                'line-color': '#333',
-                                'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0]
-                            }
-                        });
-
-                        map.on('mousemove', 'countries-fill', (e) => {
-                            if (e.features.length > 0) {
-                                const feature = e.features[0];
-                                if (hoveredCountryId !== null) {
-                                    map.setFeatureState({ source: 'countries', id: hoveredCountryId }, { hover: false });
-                                }
-                                hoveredCountryId = feature.id;
-                                map.setFeatureState({ source: 'countries', id: hoveredCountryId }, { hover: true });
-
-                                tooltipCountry.textContent = feature.properties.name;
-                                tooltipContent.innerHTML = generateInfoContent(feature.id);
-                                tooltip.style.opacity = 1;
-                                
-                                const tooltipWidth = tooltip.offsetWidth;
-                                const tooltipHeight = tooltip.offsetHeight;
-                                const padding = 15;
-                                let left = e.point.x + padding;
-                                let top = e.point.y + padding;
-
-                                if (left + tooltipWidth > map.getCanvas().clientWidth) {
-                                    left = e.point.x - tooltipWidth - padding;
-                                }
-                                if (top + tooltipHeight > map.getCanvas().clientHeight) {
-                                    top = e.point.y - tooltipHeight - padding;
-                                }
-                                tooltip.style.left = left + 'px';
-                                tooltip.style.top = top + 'px';
-                            }
-                        });
-
-                        map.on('mouseleave', 'countries-fill', () => {
-                            if (hoveredCountryId !== null) {
-                                map.setFeatureState({ source: 'countries', id: hoveredCountryId }, { hover: false });
-                            }
-                            hoveredCountryId = null;
+                    const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json");
+                    const countries = topojson.feature(world, world.objects.countries);
+                    
+                    g.selectAll(".country")
+                        .data(countries.features)
+                        .enter().append("path")
+                        .attr("class", "country no-passport")
+                        .attr("d", path)
+                        .attr("data-country-name", d => d.properties.name)
+                        .on('mouseover', (event, d) => {
+                            tooltip.style.opacity = 1;
+                            const countryName = d.properties.name;
+                            const countryCode = getCountryCodeFromName(countryName);
+                            tooltipCountry.textContent = countryName;
+                            tooltipContent.innerHTML = generateInfoContent(countryCode);
+                        })
+                        .on('mouseout', () => {
                             tooltip.style.opacity = 0;
-                        });
-                        
-                        resolve(); // Resolve the promise once the map is fully loaded
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
+                        })
+                        .on('mousemove', (event) => {
+                            const tooltipWidth = tooltip.offsetWidth;
+                            const tooltipHeight = tooltip.offsetHeight;
+                            const padding = 15;
+                            let left = event.pageX + padding;
+                            let top = event.pageY + padding;
 
-                map.on('error', (e) => {
-                    console.error("Mapbox error:", e);
-                    reject(e.error);
-                });
+                            if (left + tooltipWidth > window.innerWidth) {
+                                left = event.pageX - tooltipWidth - padding;
+                            }
+                            if (top + tooltipHeight > window.innerHeight) {
+                                top = event.pageY - tooltipHeight - padding;
+                            }
+                            tooltip.style.left = left + 'px';
+                            tooltip.style.top = top + 'px';
+                        });
+
+                    resolve();
+                } catch (error) {
+                    console.error("Failed to load map topology:", error);
+                    reject(error);
+                }
             });
         }
 

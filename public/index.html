@@ -220,8 +220,60 @@
             }).addTo(map);
         }
 
-        // --- CORE LOGIC (largely unchanged, but adapted for Leaflet) ---
-        const colorConverter = { /* ... same as before ... */ };
+        // --- CORE LOGIC ---
+        const colorConverter = {
+            isColorTooSimilar(hex1, hex2, threshold = 20) {
+                if (!hex1 || !hex2) return false;
+                if (hex1 === '#FFFFFF' && hex2 === '#FFFFFF') return true;
+                
+                const hexToRgb = (hex) => {
+                    let r = 0, g = 0, b = 0;
+                    if (hex.length == 4) {
+                        r = "0x" + hex[1] + hex[1]; g = "0x" + hex[2] + hex[2]; b = "0x" + hex[3] + hex[3];
+                    } else if (hex.length == 7) {
+                        r = "0x" + hex[1] + hex[2]; g = "0x" + hex[3] + hex[4]; b = "0x" + hex[5] + hex[6];
+                    }
+                    return { r: +r, g: +g, b: +b };
+                };
+
+                const rgbToXyz = ({ r, g, b }) => {
+                    r /= 255; g /= 255; b /= 255;
+                    r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+                    g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+                    b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+                    r *= 100; g *= 100; b *= 100;
+                    return { x: r * 0.4124 + g * 0.3576 + b * 0.1805, y: r * 0.2126 + g * 0.7152 + b * 0.0722, z: r * 0.0193 + g * 0.1192 + b * 0.9505 };
+                };
+
+                const xyzToLab = ({ x, y, z }) => {
+                    x /= 95.047; y /= 100; z /= 108.883;
+                    x = x > 0.008856 ? Math.pow(x, 1 / 3) : (7.787 * x) + (16 / 116);
+                    y = y > 0.008856 ? Math.pow(y, 1 / 3) : (7.787 * y) + (16 / 116);
+                    z = z > 0.008856 ? Math.pow(z, 1 / 3) : (7.787 * z) + (16 / 116);
+                    return { l: (116 * y) - 16, a: 500 * (x - y), b: 200 * (y - z) };
+                };
+
+                const deltaE = (labA, labB) => {
+                    const deltaL = labA.l - labB.l;
+                    const deltaA = labA.a - labB.a;
+                    const deltaB = labA.b - labB.b;
+                    const c1 = Math.sqrt(labA.a * labA.a + labA.b * labA.b);
+                    const c2 = Math.sqrt(labB.a * labB.a + labB.b * labB.b);
+                    const deltaC = c1 - c2;
+                    let deltaH = deltaA * deltaA + deltaB * deltaB - deltaC * deltaC;
+                    deltaH = deltaH < 0 ? 0 : Math.sqrt(deltaH);
+                    const sc = 1.0 + 0.045 * c1;
+                    const sh = 1.0 + 0.015 * c1;
+                    const i = (deltaL / 1.0) ** 2 + (deltaC / sc) ** 2 + (deltaH / sh) ** 2;
+                    return i < 0 ? 0 : Math.sqrt(i);
+                };
+
+                const lab1 = xyzToLab(rgbToXyz(hexToRgb(hex1)));
+                const lab2 = xyzToLab(rgbToXyz(hexToRgb(hex2)));
+                return deltaE(lab1, lab2) < threshold;
+            }
+        };
+
         function getContrastingTextColor(hex) {
             if (!hex) return '#000000';
             const cleanHex = hex.startsWith('#') ? hex.slice(1) : hex;
@@ -238,8 +290,55 @@
             const contrastWithBlack = (luminance + 0.05) / (0 + 0.05);
             return contrastWithWhite > contrastWithBlack ? '#FFFFFF' : '#000000';
         }
-        function assignPassportColors(passports) { /* ... same as before ... */ return {}; }
-        function getVisaStatusFromString(visaInfo) { /* ... same as before ... */ return 'na'; }
+
+        function assignPassportColors(passports) {
+            const assignedColors = {};
+            const usedColors = [];
+            let fallbackIndex = 0;
+
+            passports.forEach(passportCode => {
+                const palette = countryColorPalette[passportCode];
+                let colorToAssign = null;
+                
+                if (palette && palette.primary) {
+                    if (!usedColors.some(usedColor => colorConverter.isColorTooSimilar(palette.primary, usedColor))) {
+                        colorToAssign = palette.primary;
+                    }
+                }
+
+                if (!colorToAssign && palette && palette.secondary) {
+                     if (!usedColors.some(usedColor => colorConverter.isColorTooSimilar(palette.secondary, usedColor))) {
+                        colorToAssign = palette.secondary;
+                    }
+                }
+
+                if (!colorToAssign) {
+                    do {
+                        colorToAssign = fallbackColors[fallbackIndex % fallbackColors.length];
+                        fallbackIndex++;
+                    } while (usedColors.some(usedColor => colorConverter.isColorTooSimilar(colorToAssign, usedColor)));
+                }
+
+                assignedColors[passportCode] = colorToAssign;
+                usedColors.push(colorToAssign);
+            });
+            return assignedColors;
+        }
+        
+        function getVisaStatusFromString(visaInfo) {
+            if (!visaInfo) return 'na';
+            const lowerVisaInfo = visaInfo.toLowerCase();
+            if (lowerVisaInfo.includes('freedom of movement')) return 'fom';
+            if (lowerVisaInfo.includes('visa not required')) return 'vf';
+            if (lowerVisaInfo.includes('visa on arrival') || lowerVisaInfo.includes('e-voa') || lowerVisaInfo.includes('entry permit on arrival') || lowerVisaInfo.includes('free visa on arrival')) return 'voa';
+            if (lowerVisaInfo.includes('esta')) return 'esta';
+            if (lowerVisaInfo.includes('eta') || lowerVisaInfo.includes('evisitor')) return 'eta';
+            if (lowerVisaInfo.includes('evisa') || lowerVisaInfo.includes('pre-enrollment') || lowerVisaInfo.includes('online visa required')) return 'ev';
+            if (lowerVisaInfo.includes('visa required') || lowerVisaInfo.includes('visa prior to arrival')) return 'vr';
+            if (lowerVisaInfo.includes('not admitted')) return 'denied';
+            if (lowerVisaInfo.includes('citizen')) return 'citizen';
+            return 'na';
+        }
         
         function getBestOption(countryCode, passports) {
             let bestOption = { status: 'na', stay: -1, passport: null };
@@ -266,20 +365,90 @@
             return bestOption;
         }
 
-        function updateLegends() { /* ... same as before, no changes needed ... */ }
+        function updateLegends() {
+            visaStatusLegend.innerHTML = ''; // Clear existing legend
+
+            if (currentView === 'visa') {
+                visaStatusLegend.style.display = 'flex';
+                bestPassportLegend.style.display = 'none';
+
+                const applicableStatuses = new Set();
+                if (selectedPassports.length > 0) {
+                    for (const passport of selectedPassports) {
+                        if (allVisaData[passport]) {
+                            for (const dest in allVisaData[passport]) {
+                                let status = allVisaData[passport][dest].status;
+                                if (status === 'na' && allVisaData[passport][dest].visa) {
+                                    status = getVisaStatusFromString(allVisaData[passport][dest].visa);
+                                }
+                                if(status) applicableStatuses.add(status);
+                            }
+                        }
+                    }
+                } else {
+                      Object.keys(statusText).forEach(s => applicableStatuses.add(s));
+                }
+
+                if(selectedPassports.length > 0) {
+                    applicableStatuses.add('citizen');
+                }
+                
+                const legendGroups = {};
+                
+                applicableStatuses.forEach(status => {
+                    const color = statusColors[status];
+                    const text = statusText[status];
+                    const priority = statusPriority[status];
+
+                    if (!color || !text) return;
+
+                    if (!legendGroups[color]) {
+                        legendGroups[color] = {
+                            texts: new Set(),
+                            priority: priority 
+                        };
+                    }
+                    legendGroups[color].texts.add(text);
+                });
+
+                const sortedGroups = Object.entries(legendGroups).map(([color, data]) => ({
+                    color,
+                    texts: Array.from(data.texts),
+                    priority: data.priority
+                })).sort((a, b) => a.priority - b.priority);
+
+                sortedGroups.forEach(group => {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'text-xs font-medium px-3 py-1 rounded-full';
+                    legendItem.style.backgroundColor = group.color;
+                    legendItem.style.color = getContrastingTextColor(group.color);
+                    legendItem.textContent = group.texts.join(' / ');
+                    visaStatusLegend.appendChild(legendItem);
+                });
+
+            } else { // Best Passport View
+                visaStatusLegend.style.display = 'none';
+                bestPassportLegend.style.display = 'flex';
+                bestPassportLegend.innerHTML = '';
+                selectedPassports.forEach((passport) => {
+                    const color = sessionPassportColors[passport];
+                    const passportName = countryCodeToNameMap[passport] || passport;
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full';
+                    legendItem.style.backgroundColor = color;
+                    legendItem.style.color = getContrastingTextColor(color);
+                    legendItem.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full" style="background-color: ${color};"></span>${passportName}`;
+                    bestPassportLegend.appendChild(legendItem);
+                });
+            }
+        }
 
         function updateMapColors() {
             if (!geojsonLayer) return;
 
             geojsonLayer.eachLayer(layer => {
-                const countryA3 = layer.feature.properties.ISO_A3;
+                const countryA3 = layer.feature.id;
                 let countryA2 = isoA3toA2[countryA3];
-
-                // Handle special cases not in the main mapping
-                if (layer.feature.properties.ADMIN === 'Greenland') countryA2 = 'DK';
-                if (layer.feature.properties.ADMIN === 'Puerto Rico') countryA2 = 'US';
-                if (layer.feature.properties.ADMIN === 'New Caledonia') countryA2 = 'FR';
-                if (layer.feature.properties.ADMIN === 'Western Sahara') countryA2 = 'EH';
                 
                 let style = {
                     weight: 1,
@@ -367,7 +536,7 @@
                     allVisaData['CN']['MO'] = { ...specialPermitData };
                 }
             
-                sessionPassportColors = assignPassportColors(selectedPassports); // Assign colors for the legend
+                sessionPassportColors = assignPassportColors(selectedPassports);
                 updateLegends();
                 updateMapColors();
                 updateMapSelectedFlags();
@@ -377,7 +546,6 @@
                 mapView.style.opacity = '1';
                 mapView.style.pointerEvents = 'auto';
                 
-                // Invalidate map size to ensure it renders correctly after being hidden
                 await new Promise(resolve => setTimeout(resolve, 50));
                 map.invalidateSize();
 
@@ -391,10 +559,73 @@
             }
         }
         
-        function updateMapSelectedFlags() { /* ... same as before ... */ }
-        function updateSelectedTray() { /* ... same as before ... */ }
-        function handleFlagClick(event) { /* ... same as before ... */ }
-        function handleTrayFlagClick(event) { /* ... same as before ... */ }
+        function updateMapSelectedFlags() {
+            mapSelectedFlags.innerHTML = '';
+            selectedPassports.forEach(code => {
+                const flagImg = document.createElement('img');
+                flagImg.src = `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
+                flagImg.className = 'h-8 rounded-md shadow-sm';
+                flagImg.title = countryCodeToNameMap[code];
+                mapSelectedFlags.appendChild(flagImg);
+            });
+        }
+
+        function updateSelectedTray() {
+            selectedFlagsContainer.innerHTML = '';
+            if (selectedPassports.length === 0) {
+                selectedFlagsContainer.appendChild(trayPlaceholder);
+            } else {
+                trayPlaceholder.remove();
+                selectedPassports.forEach(code => {
+                    const flagImg = document.createElement('img');
+                    flagImg.src = `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
+                    flagImg.className = 'h-8 rounded-md shadow-sm cursor-pointer';
+                    flagImg.dataset.code = code;
+                    flagImg.title = `Click to remove ${countryCodeToNameMap[code]}`;
+                    selectedFlagsContainer.appendChild(flagImg);
+                });
+            }
+            viewMapBtn.disabled = selectedPassports.length === 0;
+        }
+
+        function handleFlagClick(event) {
+            const target = event.target.closest('.flag-item');
+            if (!target) return;
+            
+            const code = target.dataset.code;
+            if (selectedPassports.includes(code)) {
+                selectedPassports = selectedPassports.filter(p => p !== code);
+                target.classList.remove('selected');
+            } else {
+                selectedPassports.push(code);
+                target.classList.add('selected');
+            }
+            updateSelectedTray();
+
+            countrySearch.value = '';
+            countrySearch.dispatchEvent(new Event('input', { bubbles: true }));
+
+            if (event.pointerType !== 'touch') {
+                countrySearch.focus();
+            }
+        }
+        
+        function handleTrayFlagClick(event) {
+            const target = event.target;
+            if (target.tagName === 'IMG') {
+                const code = target.dataset.code;
+                if (!code) return;
+
+                selectedPassports = selectedPassports.filter(p => p !== code);
+                
+                const gridFlag = flagGrid.querySelector(`.flag-item[data-code="${code}"]`);
+                if (gridFlag) {
+                    gridFlag.classList.remove('selected');
+                }
+                
+                updateSelectedTray();
+            }
+        }
 
         // --- INITIALIZATION ---
         async function initialize() {
@@ -402,8 +633,8 @@
             loader.style.display = 'flex';
             loader.style.opacity = '1';
 
-            // Populate flag grid (same as before)
             const passportOptions = Object.keys(apiPassportList).map(name => ({ value: apiPassportList[name], text: name })).sort((a, b) => a.text.localeCompare(b.text));
+            
             passportOptions.forEach(opt => {
                 const flagItem = document.createElement('div');
                 flagItem.className = 'flag-item flex flex-col items-center p-2 rounded-lg cursor-pointer hover:bg-gray-200';
@@ -414,9 +645,37 @@
                 flagGrid.appendChild(flagItem);
             });
             
-            // Event listeners (same as before)
-            countrySearch.addEventListener('input', (e) => { /* ... */ });
-            countrySearch.addEventListener('keydown', (e) => { /* ... */ });
+            countrySearch.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                document.querySelectorAll('.flag-item').forEach(item => {
+                    const officialName = item.dataset.name;
+                    const code = item.dataset.code;
+                    
+                    let match = officialName.startsWith(searchTerm);
+                    
+                    if (!match && countryAliases[code]) {
+                        for (const alias of countryAliases[code]) {
+                            if (alias.startsWith(searchTerm)) {
+                                match = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    item.style.display = match ? 'flex' : 'none';
+                });
+            });
+
+            countrySearch.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const firstVisibleFlag = document.querySelector('.flag-item:not([style*="display: none"])');
+                    if (firstVisibleFlag) {
+                        firstVisibleFlag.click();
+                    }
+                }
+            });
+
             viewMapBtn.addEventListener('click', switchToMapView);
             backToLandingBtn.addEventListener('click', () => {
                 mapView.style.opacity = '0';
@@ -428,19 +687,15 @@
             passportViewBtn.addEventListener('click', () => { currentView = 'passport'; passportViewBtn.classList.add('active'); visaViewBtn.classList.remove('active'); updateLegends(); updateMapColors(); });
             selectedFlagsContainer.addEventListener('click', handleTrayFlagClick);
 
-            // Setup Leaflet map and load GeoJSON
             setupMap();
             try {
                 const response = await fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json');
                 const geojsonData = await response.json();
 
-                // Merge Somaliland into Somalia
                 const somaliaFeature = geojsonData.features.find(f => f.id === 'SOM');
-                const somalilandFeature = geojsonData.features.find(f => f.id === 'SOL'); // Note: 'SOL' is often used for Somaliland
+                const somalilandFeature = geojsonData.features.find(f => f.id === 'SOL');
                 
                 if(somaliaFeature && somalilandFeature) {
-                    // This is a simplified merge. For production, a proper polygon merge might be needed.
-                    // For this dataset, simply removing Somaliland is often sufficient as Somalia's polygon is usually complete.
                     geojsonData.features = geojsonData.features.filter(f => f.id !== 'SOL');
                 }
 

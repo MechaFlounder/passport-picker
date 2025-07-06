@@ -507,7 +507,11 @@
                     if (currentView === 'visa') {
                         fillColor = statusColors[bestOption.status] || statusColors['na'];
                     } else { // Best Passport View
-                        fillColor = bestOption.passport ? (sessionPassportColors[bestOption.passport] || statusColors['na']) : statusColors['na'];
+                        if (bestOption.status === 'na') {
+                             fillColor = statusColors['na'];
+                        } else {
+                            fillColor = bestOption.passport ? (sessionPassportColors[bestOption.passport] || statusColors['na']) : statusColors['na'];
+                        }
                         outlineColor = getContrastingBorderColor(fillColor);
                     }
                     

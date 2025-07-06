@@ -212,20 +212,21 @@
             });
 
             map.on('load', () => {
-                // Hide all layers except for the background and country boundaries
+                // Hide all layers from the base style except for the background.
                 const allLayers = map.getStyle().layers;
                 for (const layer of allLayers) {
-                    if (layer.id !== 'background' && !layer.id.includes('country')) {
+                    if (layer.id !== 'background') {
                         map.setLayoutProperty(layer.id, 'visibility', 'none');
                     }
                 }
                 
-                // Add our custom layer for coloring countries
+                // Add our custom source for country boundaries
                 map.addSource('countries', {
                     'type': 'vector',
                     'url': 'mapbox://mapbox.country-boundaries-v1'
                 });
 
+                // Add our custom fill layer for coloring countries
                 map.addLayer({
                     'id': MAP_LAYER_ID,
                     'type': 'fill',
@@ -241,7 +242,7 @@
                         ],
                         'fill-outline-color': '#333'
                     }
-                }, 'background'); // Add layer below labels if they were visible
+                });
 
                 // --- Map Interactions ---
                 map.on('mousemove', MAP_LAYER_ID, (e) => {
@@ -658,4 +659,4 @@
         initialize();
     </script>
 </body>
-</html>
+</ht

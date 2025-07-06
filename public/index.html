@@ -286,7 +286,32 @@
         function getContrastingTextColor(hex) { /* ... same as before ... */ }
         function assignPassportColors(passports) { /* ... same as before ... */ }
         function getVisaStatusFromString(visaInfo) { /* ... same as before ... */ }
-        function getBestOption(countryCode, passports) { /* ... same as before ... */ }
+        
+        function getBestOption(countryCode, passports) {
+            let bestOption = { status: 'na', stay: -1, passport: null };
+            for (const passport of passports) {
+                let visaInfo = allVisaData[passport]?.[countryCode] || { status: 'na', stay: 0 };
+                if (visaInfo.status === 'na' && visaInfo.visa) {
+                    const derivedStatus = getVisaStatusFromString(visaInfo.visa);
+                    if (derivedStatus !== 'na') {
+                        visaInfo = { ...visaInfo, status: derivedStatus };
+                    }
+                }
+                const currentPriority = statusPriority[visaInfo.status];
+                const bestPriority = statusPriority[bestOption.status];
+
+                if (currentPriority < bestPriority) {
+                    bestOption = { ...visaInfo, passport };
+                } else if (currentPriority === bestPriority) {
+                    // If priorities are the same, prefer the one with the longer stay for the tooltip info.
+                    // This does not affect the color, which is based only on status.
+                    if (visaInfo.stay > bestOption.stay) {
+                        bestOption = { ...visaInfo, passport };
+                    }
+                }
+            }
+            return bestOption;
+        }
         
         function updateLegends() {
             sessionPassportColors = assignPassportColors(selectedPassports);
@@ -583,18 +608,6 @@
             if (lowerVisaInfo.includes('citizen')) return 'citizen';
             return 'na';
         };
-        getBestOption = function(countryCode, passports) {
-            let bestOption = { status: 'na', stay: -1, passport: null };
-            for (const passport of passports) {
-                let visaInfo = allVisaData[passport]?.[countryCode] || { status: 'na', stay: 0 };
-                if (visaInfo.status === 'na' && visaInfo.visa) { const derivedStatus = getVisaStatusFromString(visaInfo.visa); if (derivedStatus !== 'na') { visaInfo = { ...visaInfo, status: derivedStatus }; } }
-                const currentPriority = statusPriority[visaInfo.status];
-                const bestPriority = statusPriority[bestOption.status];
-                if (currentPriority < bestPriority) { bestOption = { ...visaInfo, passport }; } 
-                else if (currentPriority === bestPriority) { if (visaInfo.stay > bestOption.stay) { bestOption = { ...visaInfo, passport }; } }
-            }
-            return bestOption;
-        };
         updateMapSelectedFlags = function() {
             mapSelectedFlags.innerHTML = '';
             selectedPassports.forEach(code => {
@@ -668,4 +681,4 @@
         initialize();
     </script>
 </body>
-</html>
+</ht

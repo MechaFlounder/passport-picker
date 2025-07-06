@@ -225,8 +225,21 @@
                 loaderText.textContent = 'Loading Map...';
                 loader.style.display = 'flex';
                 loader.style.opacity = '1';
-                await initializeMap();
-                mapInitialized = true;
+                try {
+                    await initializeMap();
+                    mapInitialized = true;
+                } catch (error) {
+                    console.error("Failed to initialize map:", error);
+                    alert("The map could not be loaded. Please try again.");
+                    // Hide loader and switch back
+                    loader.style.opacity = '0';
+                    setTimeout(() => { loader.style.display = 'none'; }, 500);
+                    mapView.style.opacity = '0';
+                    mapView.style.pointerEvents = 'none';
+                    landingPage.style.opacity = '1';
+                    landingPage.style.pointerEvents = 'auto';
+                    return;
+                }
             } else {
                 map.resize();
             }

@@ -249,12 +249,7 @@
                             statusColors['no-passport']
                         ],
                         'fill-opacity': 1.0,
-                        'fill-outline-color': [
-                            'case',
-                            ['has', 'outlineColor', ['feature-state']],
-                            ['feature-state', 'outlineColor'],
-                            '#333'
-                        ]
+                        'fill-outline-color': '#333'
                     }
                 });
 
@@ -322,24 +317,6 @@
             return contrastWithWhite > contrastWithBlack ? '#FFFFFF' : '#000000';
         }
 
-        function getContrastingBorderColor(hex) {
-            if (!hex) return '#333'; // Default dark border
-            const cleanHex = hex.startsWith('#') ? hex.slice(1) : hex;
-            if (cleanHex.length !== 6) return '#333';
-
-            const r = parseInt(cleanHex.slice(0, 2), 16);
-            const g = parseInt(cleanHex.slice(2, 4), 16);
-            const b = parseInt(cleanHex.slice(4, 6), 16);
-
-            const getLuminance = (c) => {
-                const srgb = c / 255;
-                return srgb <= 0.03928 ? srgb / 12.92 : Math.pow((srgb + 0.055) / 1.055, 2.4);
-            };
-            const luminance = 0.2126 * getLuminance(r) + 0.7152 * getLuminance(g) + 0.0722 * getLuminance(b);
-
-            return luminance < 0.4 ? '#CCCCCC' : '#333333';
-        }
-
         function assignPassportColors(passports) {
             const assignedColors = {};
             const usedColors = [];
@@ -347,9 +324,9 @@
             passports.forEach(passportCode => {
                 const palette = countryColorPalette[passportCode];
                 let colorToAssign = null;
-                if (palette && palette.primary) { if (!usedColors.some(usedColor => getContrastingBorderColor(palette.primary) === getContrastingBorderColor(usedColor))) { colorToAssign = palette.primary; } }
-                if (!colorToAssign && palette && palette.secondary) { if (!usedColors.some(usedColor => getContrastingBorderColor(palette.secondary) === getContrastingBorderColor(usedColor))) { colorToAssign = palette.secondary; } }
-                if (!colorToAssign) { do { colorToAssign = fallbackColors[fallbackIndex % fallbackColors.length]; fallbackIndex++; } while (usedColors.some(usedColor => getContrastingBorderColor(colorToAssign) === getContrastingBorderColor(usedColor))); }
+                if (palette && palette.primary) { if (!usedColors.includes(palette.primary)) { colorToAssign = palette.primary; } }
+                if (!colorToAssign && palette && palette.secondary) { if (!usedColors.includes(palette.secondary)) { colorToAssign = palette.secondary; } }
+                if (!colorToAssign) { do { colorToAssign = fallbackColors[fallbackIndex % fallbackColors.length]; fallbackIndex++; } while (usedColors.includes(colorToAssign)); }
                 assignedColors[passportCode] = colorToAssign;
                 usedColors.push(colorToAssign);
             });
@@ -516,7 +493,6 @@
                     } else {
                         fillColor = bestOption.passport ? (sessionPassportColors[bestOption.passport] || statusColors['na']) : statusColors['na'];
                     }
-                    outlineColor = getContrastingBorderColor(fillColor);
                 }
                 
                 map.setFeatureState(

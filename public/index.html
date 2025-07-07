@@ -212,6 +212,14 @@
                 center: [0, 20],
                 zoom: 1.5,
                 projection: 'equalEarth'
+                transformRequest: (url, resourceType) => {
+        		if (resourceType === 'Source' || resourceType === 'Tile') {
+            		// Add the worldview parameter to all tile and source requests.
+            		return {
+                		url: url + '&worldview=US'
+            		}
+       		 }
+    	}
             });
 
             const popup = new mapboxgl.Popup({

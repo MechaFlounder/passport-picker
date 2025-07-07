@@ -941,17 +941,20 @@
             const code = target.dataset.code;
             if (!code) return;
 
-            const index = activePassports.indexOf(code);
-            if (index > -1) {
-                // Prevent removing the last active passport
-                if (activePassports.length === 1) {
+            const activeSet = new Set(activePassports);
+
+            if (activeSet.has(code)) {
+                if (activeSet.size === 1) {
                     showNotification('At least one passport must be active.');
                     return;
                 }
-                activePassports.splice(index, 1);
+                activeSet.delete(code);
             } else {
-                activePassports.push(code);
+                activeSet.add(code);
             }
+            
+            // Rebuild activePassports array based on the master selectedPassports order
+            activePassports = selectedPassports.filter(p => activeSet.has(p));
             
             focusedLegend = null; // Clear legend focus when toggling flags
             updateActiveFlagsUI();

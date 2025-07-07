@@ -77,6 +77,20 @@
         .shake {
             animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
         }
+
+        /* Styles for focused and desaturated flags */
+        .focused-flag {
+            box-shadow: 0 0 0 3px #3B82F6;
+            border-radius: 0.375rem; /* 6px */
+            transform: scale(1.05);
+        }
+        .desaturated-flag {
+            filter: grayscale(100%);
+            opacity: 0.6;
+        }
+        #map-selected-flags img {
+            transition: all 0.2s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased overflow-hidden">
@@ -193,6 +207,7 @@
         let currentView = 'visa';
         let sessionPassportColors = {};
         let selectedPassports = [];
+        let focusedPassport = null; // To track single-passport focus view
         let notificationTimeout;
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
 
@@ -555,7 +570,7 @@
         }
         
         function handleLegendHover(type, value) {
-            if (!map || !map.isStyleLoaded() || selectedPassports.length === 0) return;
+            if (!map || !map.isStyleLoaded() || selectedPassports.length === 0 || focusedPassport) return;
 
             const opacityExpression = ['case'];
             const features = map.querySourceFeatures('countries', {
@@ -592,7 +607,7 @@
         }
 
         function handleLegendMouseOut() {
-            if (!map || !map.isStyleLoaded()) return;
+            if (!map || !map.isStyleLoaded() || focusedPassport) return;
             map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
             map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
         }
@@ -601,18 +616,19 @@
             sessionPassportColors = assignPassportColors(selectedPassports);
             visaStatusLegend.innerHTML = '';
             bestPassportLegend.innerHTML = '';
+            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
 
             if (currentView === 'visa') {
                 visaStatusLegend.style.display = 'flex';
                 bestPassportLegend.style.display = 'none';
 
                 const applicableStatuses = new Set();
-                if (selectedPassports.length > 0) {
+                if (passportsToConsider.length > 0) {
                     const features = map.querySourceFeatures('countries', { sourceLayer: 'country_boundaries' });
                     const allMapCodesA2 = new Set(features.map(f => f.properties.iso_3166_1));
                     allMapCodesA2.forEach(countryCodeA2 => {
                         if (countryCodeA2) {
-                            const bestOption = getBestOption(countryCodeA2, selectedPassports);
+                            const bestOption = getBestOption(countryCodeA2, passportsToConsider);
                             applicableStatuses.add(bestOption.status);
                         }
                     });
@@ -679,11 +695,13 @@
 
         function updateMapColors() {
             if (!map || !map.isStyleLoaded()) return;
+            handleLegendMouseOut(); // Reset any hover effects
 
             const colorExpression = ['case'];
-            const defaultColor = selectedPassports.length === 0 ? statusColors['no-passport'] : statusColors['na'];
+            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
+            const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
 
-            if (selectedPassports.length > 0) {
+            if (passportsToConsider.length > 0) {
                 const features = map.querySourceFeatures('countries', { 
                     sourceLayer: 'country_boundaries',
                     filter: ['==', ['get', 'disputed'], 'false']
@@ -693,7 +711,7 @@
                 allMapCodesA2.forEach(countryCodeA2 => {
                     if (!countryCodeA2) return;
                     
-                    const bestOption = getBestOption(countryCodeA2, selectedPassports);
+                    const bestOption = getBestOption(countryCodeA2, passportsToConsider);
                     let color;
 
                     if (currentView === 'visa') {
@@ -712,7 +730,8 @@
         }
 
         function generateInfoContent(countryCodeA2) {
-            if (selectedPassports.length === 0) return '<p class="text-gray-500">Select a passport to see visa info.</p>';
+            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
+            if (passportsToConsider.length === 0) return '<p class="text-gray-500">Select a passport to see visa info.</p>';
             if (!countryCodeA2 || !allVisaData) return '<p class="text-gray-500">No visa data available for this country.</p>';
 
             let contentHTML = '';
@@ -739,7 +758,7 @@
                     specialNote = `<p class="text-xs text-gray-600 pb-2 border-b mb-2">Policy follows Morocco.</p>`;
                     break;
                 case 'GL':
-                    const denmarkBestOption = getBestOption('DK', selectedPassports);
+                    const denmarkBestOption = getBestOption('DK', passportsToConsider);
                     specialNote = `<p class="text-xs text-gray-600 pb-2 border-b mb-2">Policy follows Denmark for visa-free travel.</p>`;
                     if (denmarkBestOption.status !== 'vf' && denmarkBestOption.status !== 'fom') {
                          return specialNote + `<ul class="space-y-2"><li><span class="w-3 h-3 rounded-full mr-3 info-vr" style="display: inline-block; vertical-align: middle;"></span><span>Visa Required</span></li></ul>`;
@@ -748,7 +767,7 @@
                     break;
             }
 
-            selectedPassports.forEach(passport => {
+            passportsToConsider.forEach(passport => {
                 const passportName = countryCodeToNameMap[passport] || passport;
                 let visaInfo = allVisaData[passport]?.[lookupCode] || { status: 'na', stay: 0 };
                  if (visaInfo.status === 'na' && visaInfo.visa) {
@@ -821,15 +840,35 @@
             }
         }
         
+        function updateFocusedFlagUI() {
+            const flags = mapSelectedFlags.querySelectorAll('img');
+            flags.forEach(flag => {
+                const code = flag.dataset.code;
+                if (focusedPassport === null) {
+                    flag.classList.remove('focused-flag', 'desaturated-flag');
+                } else {
+                    if (code === focusedPassport) {
+                        flag.classList.add('focused-flag');
+                        flag.classList.remove('desaturated-flag');
+                    } else {
+                        flag.classList.add('desaturated-flag');
+                        flag.classList.remove('focused-flag');
+                    }
+                }
+            });
+        }
+
         function updateMapSelectedFlags() {
             mapSelectedFlags.innerHTML = '';
             selectedPassports.forEach(code => {
                 const flagImg = document.createElement('img');
                 flagImg.src = `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
-                flagImg.className = 'h-8 rounded-md shadow-sm';
+                flagImg.className = 'h-8 rounded-md shadow-sm cursor-pointer';
+                flagImg.dataset.code = code;
                 flagImg.title = countryCodeToNameMap[code];
                 mapSelectedFlags.appendChild(flagImg);
             });
+            updateFocusedFlagUI();
         }
         function updateSelectedTray() {
             selectedFlagsContainer.innerHTML = '';
@@ -882,6 +921,26 @@
             }
         }
 
+        function handleMapFlagClick(event) {
+            if (currentView !== 'visa') return;
+
+            const target = event.target;
+            if (target.tagName === 'IMG') {
+                const code = target.dataset.code;
+                if (!code) return;
+
+                if (focusedPassport === code) {
+                    focusedPassport = null; // Toggle off
+                } else {
+                    focusedPassport = code; // Select new
+                }
+
+                updateFocusedFlagUI();
+                updateMapColors();
+                updateLegends();
+            }
+        }
+
         // --- INITIALIZATION ---
         async function initialize() {
             loaderText.textContent = 'Initializing Map...';
@@ -918,16 +977,34 @@
                     }
                 }
             });
-            viewMapBtn.addEventListener('click', switchToMapView);
+            viewMapBtn.addEventListener('click', () => {
+                focusedPassport = null;
+                switchToMapView();
+            });
             backToLandingBtn.addEventListener('click', () => {
                 mapView.style.opacity = '0';
                 mapView.style.pointerEvents = 'none';
                 landingPage.style.opacity = '1';
                 landingPage.style.pointerEvents = 'auto';
             });
-            visaViewBtn.addEventListener('click', () => { currentView = 'visa'; visaViewBtn.classList.add('active'); passportViewBtn.classList.remove('active'); updateLegends(); updateMapColors(); });
-            passportViewBtn.addEventListener('click', () => { currentView = 'passport'; passportViewBtn.classList.add('active'); visaViewBtn.classList.remove('active'); updateLegends(); updateMapColors(); });
+            visaViewBtn.addEventListener('click', () => { 
+                currentView = 'visa'; 
+                visaViewBtn.classList.add('active'); 
+                passportViewBtn.classList.remove('active'); 
+                updateLegends(); 
+                updateMapColors(); 
+            });
+            passportViewBtn.addEventListener('click', () => { 
+                currentView = 'passport';
+                focusedPassport = null; // Reset focus when switching view
+                updateFocusedFlagUI();
+                passportViewBtn.classList.add('active'); 
+                visaViewBtn.classList.remove('active'); 
+                updateLegends(); 
+                updateMapColors(); 
+            });
             selectedFlagsContainer.addEventListener('click', handleTrayFlagClick);
+            mapSelectedFlags.addEventListener('click', handleMapFlagClick);
 
             // Add listener for tab visibility changes to prevent rendering issues
             document.addEventListener('visibilitychange', () => {

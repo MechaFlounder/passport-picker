@@ -203,8 +203,7 @@
         let map;
         let hoveredCountryId = null;
         const MAP_LAYER_ID = 'country-fills';
-        const FALKLANDS_LAYER_ID = 'falklands-fill';
-        const KASHMIR_LAYER_ID = 'kashmir-fill';
+        const DISPUTED_LAYER_ID = 'disputed-territories-fill';
 
         async function initializeMap(token) {
             mapboxgl.accessToken = token;
@@ -243,47 +242,26 @@
                     'worldview': 'US' // This is now the single source of truth for boundaries
                 });
 
-                // Define filters for disputed territories
-                const kashmirNames = ['Jammu and Kashmir', 'Azad Kashmir', 'Gilgit-Baltistan', 'Aksai Chin', 'Ladakh'];
-                const KASHMIR_FILTER = ['in', ['get', 'name_en'], ['literal', kashmirNames]];
-
                 // Add our custom fill layer for coloring countries, EXCLUDING disputed territories
                 map.addLayer({
                     'id': MAP_LAYER_ID,
                     'type': 'fill',
                     'source': 'countries',
                     'source-layer': 'country_boundaries',
-                    'filter': [
-                        'all',
-                        ['!=', ['get', 'iso_3166_1_alpha_3'], 'FLK'], // Exclude Falkland Islands
-                        ['!', KASHMIR_FILTER] // Exclude Kashmir region
-                    ],
+                    'filter': ['==', ['get', 'disputed'], 'false'], // Only show non-disputed areas
                     'paint': {
                         'fill-color': statusColors['no-passport'],
                         'fill-opacity': 1.0
                     }
                 });
                 
-                // Add a dedicated layer for the Falkland Islands to ensure consistent rendering
+                // Add a dedicated layer for all disputed territories to ensure consistent rendering
                 map.addLayer({
-                    'id': FALKLANDS_LAYER_ID,
+                    'id': DISPUTED_LAYER_ID,
                     'type': 'fill',
                     'source': 'countries',
                     'source-layer': 'country_boundaries',
-                    'filter': ['==', ['get', 'iso_3166_1_alpha_3'], 'FLK'], // Only Falkland Islands
-                    'paint': {
-                        'fill-color': statusColors['na'], // Statically set to 'No Data' color
-                        'fill-opacity': 1.0
-                    }
-                });
-
-                // Add a dedicated layer for the Kashmir region
-                map.addLayer({
-                    'id': KASHMIR_LAYER_ID,
-                    'type': 'fill',
-                    'source': 'countries',
-                    'source-layer': 'country_boundaries',
-                    'filter': KASHMIR_FILTER,
+                    'filter': ['==', ['get', 'disputed'], 'true'], // Only show disputed areas
                     'paint': {
                         'fill-color': statusColors['na'], // Statically set to 'No Data' color
                         'fill-opacity': 1.0
@@ -304,7 +282,8 @@
                 });
 
                 // --- Map Interactions ---
-                const interactiveLayerIds = [MAP_LAYER_ID, FALKLANDS_LAYER_ID, KASHMIR_LAYER_ID];
+                const interactiveLayerIds = [MAP_LAYER_ID, DISPUTED_LAYER_ID];
+                const kashmirNames = ['Jammu and Kashmir', 'Azad Kashmir', 'Gilgit-Baltistan', 'Aksai Chin', 'Ladakh'];
 
                 map.on('mousemove', interactiveLayerIds, (e) => {
                     if (e.features.length > 0) {
@@ -324,16 +303,21 @@
                         const countryCodeA2 = isoA3toA2[countryCodeA3];
                         let contentHTML;
 
-                        if (kashmirNames.includes(countryName)) {
-                            countryName = 'Disputed Territory (Kashmir)';
+                        // Handle disputed territories specifically
+                        if (feature.layer.id === DISPUTED_LAYER_ID) {
+                            if (countryCodeA3 === 'FLK') {
+                                countryName = 'Falkland Islands / Islas Malvinas';
+                            } else if (kashmirNames.includes(feature.properties.name_en)) {
+                                countryName = 'Disputed Territory (Kashmir)';
+                            } else {
+                                countryName = `Disputed Territory (${feature.properties.name_en})`;
+                            }
                             contentHTML = '<p>No visa data available.</p>';
-                        } else if (countryCodeA3 === 'FLK') {
-                            countryName = 'Falkland Islands / Islas Malvinas';
-                            contentHTML = generateInfoContent(countryCodeA2);
-                        } else if (countryCodeA2 === 'XK') {
-                            countryName = 'Kosovo';
-                            contentHTML = generateInfoContent(countryCodeA2);
                         } else {
+                            // Handle regular countries
+                            if (countryCodeA2 === 'XK') {
+                                countryName = 'Kosovo';
+                            }
                             contentHTML = generateInfoContent(countryCodeA2);
                         }
 
@@ -606,7 +590,7 @@
             if (selectedPassports.length > 0) {
                 const features = map.querySourceFeatures('countries', { 
                     sourceLayer: 'country_boundaries',
-                    filter: ['!=', ['get', 'iso_3166_1_alpha_3'], 'FLK'] // Make sure not to query the falklands
+                    filter: ['==', ['get', 'disputed'], 'false']
                 });
                 const allMapCodesA2 = new Set(features.map(f => f.properties.iso_3166_1));
 

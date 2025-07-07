@@ -91,6 +91,10 @@
         #map-selected-flags img {
             transition: all 0.2s ease-in-out;
         }
+        .legend-item.focused-legend-item {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #3B82F6;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased overflow-hidden">
@@ -208,6 +212,7 @@
         let sessionPassportColors = {};
         let selectedPassports = [];
         let focusedPassport = null; // To track single-passport focus view
+        let focusedLegend = null; // To track legend item focus
         let notificationTimeout;
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
 
@@ -568,10 +573,16 @@
             }
             return bestOption;
         }
-        
-        function handleLegendHover(type, value) {
-            if (!map || !map.isStyleLoaded() || selectedPassports.length === 0 || focusedPassport) return;
 
+        function updateMapOpacityForLegendFocus() {
+            if (!map || !map.isStyleLoaded() || !focusedLegend) {
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+                return;
+            }
+
+            const { type, value } = focusedLegend;
+            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
             const opacityExpression = ['case'];
             const features = map.querySourceFeatures('countries', {
                 sourceLayer: 'country_boundaries',
@@ -582,16 +593,14 @@
             allMapCodesA2.forEach(countryCodeA2 => {
                 if (!countryCodeA2) return;
 
-                const bestOption = getBestOption(countryCodeA2, selectedPassports);
+                const bestOption = getBestOption(countryCodeA2, passportsToConsider);
                 let isHighlighted = false;
 
                 if (type === 'visa') {
-                    // value is a Set of statuses
                     if (value.has(bestOption.status)) {
                         isHighlighted = true;
                     }
                 } else { // type is 'passport'
-                    // value is a single passport code
                     if (bestOption.passport === value) {
                         isHighlighted = true;
                     }
@@ -605,11 +614,24 @@
             map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
             map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.2);
         }
+        
+        function handleLegendClick(type, value, clickedElement) {
+            // If the clicked item is already focused, unfocus it
+            if (focusedLegend && focusedLegend.type === type && JSON.stringify(Array.from(focusedLegend.value)) === JSON.stringify(Array.from(value))) {
+                focusedLegend = null;
+            } else {
+                focusedLegend = { type, value };
+            }
+            
+            // Update UI for all legend items
+            const allLegendItems = document.querySelectorAll('.legend-item');
+            allLegendItems.forEach(item => item.classList.remove('focused-legend-item'));
+            
+            if (focusedLegend) {
+                clickedElement.classList.add('focused-legend-item');
+            }
 
-        function handleLegendMouseOut() {
-            if (!map || !map.isStyleLoaded() || focusedPassport) return;
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
-            map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+            updateMapOpacityForLegendFocus();
         }
 
         function updateLegends() {
@@ -659,13 +681,12 @@
 
                 sortedGroups.forEach(group => {
                     const legendItem = document.createElement('div');
-                    legendItem.className = 'text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200 hover:scale-110';
+                    legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
                     legendItem.style.backgroundColor = group.color;
                     legendItem.style.color = getContrastingTextColor(group.color);
                     legendItem.textContent = group.texts.join(' / ');
                     
-                    legendItem.addEventListener('mouseover', () => handleLegendHover('visa', group.statuses));
-                    legendItem.addEventListener('mouseout', handleLegendMouseOut);
+                    legendItem.addEventListener('click', (e) => handleLegendClick('visa', group.statuses, e.currentTarget));
 
                     visaStatusLegend.appendChild(legendItem);
                 });
@@ -680,23 +701,31 @@
                         passportName = 'USA';
                     }
                     const legendItem = document.createElement('div');
-                    legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full cursor-pointer transition-transform duration-200 hover:scale-110';
+                    legendItem.className = 'legend-item flex items-center text-xs font-medium px-2 py-1 rounded-full cursor-pointer transition-transform duration-200';
                     legendItem.style.backgroundColor = color;
                     legendItem.style.color = getContrastingTextColor(color);
                     legendItem.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full" style="background-color: ${color};"></span>${passportName}`;
                     
-                    legendItem.addEventListener('mouseover', () => handleLegendHover('passport', passport));
-                    legendItem.addEventListener('mouseout', handleLegendMouseOut);
+                    legendItem.addEventListener('click', (e) => handleLegendClick('passport', new Set([passport]), e.currentTarget));
                     
                     bestPassportLegend.appendChild(legendItem);
+                });
+            }
+            // After creating legends, re-apply focus styles if needed
+            if(focusedLegend) {
+                const allLegendItems = document.querySelectorAll('.legend-item');
+                allLegendItems.forEach(item => {
+                    // This is a simplified check. A more robust check might involve data attributes.
+                    if(item.textContent.includes(focusedLegend.type === 'passport' ? countryCodeToNameMap[Array.from(focusedLegend.value)[0]] : statusText[Array.from(focusedLegend.value)[0]])) {
+                        item.classList.add('focused-legend-item');
+                    }
                 });
             }
         }
 
         function updateMapColors() {
             if (!map || !map.isStyleLoaded()) return;
-            handleLegendMouseOut(); // Reset any hover effects
-
+            
             const colorExpression = ['case'];
             const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
             const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
@@ -727,6 +756,7 @@
 
             colorExpression.push(defaultColor); // Fallback color
             map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+            updateMapOpacityForLegendFocus();
         }
 
         function generateInfoContent(countryCodeA2) {
@@ -934,11 +964,20 @@
                 } else {
                     focusedPassport = code; // Select new
                 }
-
+                
+                focusedLegend = null; // Clear legend focus
                 updateFocusedFlagUI();
                 updateMapColors();
                 updateLegends();
             }
+        }
+
+        function clearAllFocus() {
+            focusedPassport = null;
+            focusedLegend = null;
+            updateFocusedFlagUI();
+            updateMapColors();
+            updateLegends();
         }
 
         // --- INITIALIZATION ---
@@ -979,6 +1018,7 @@
             });
             viewMapBtn.addEventListener('click', () => {
                 focusedPassport = null;
+                focusedLegend = null;
                 switchToMapView();
             });
             backToLandingBtn.addEventListener('click', () => {
@@ -991,13 +1031,11 @@
                 currentView = 'visa'; 
                 visaViewBtn.classList.add('active'); 
                 passportViewBtn.classList.remove('active'); 
-                updateLegends(); 
-                updateMapColors(); 
+                clearAllFocus();
             });
             passportViewBtn.addEventListener('click', () => { 
                 currentView = 'passport';
-                focusedPassport = null; // Reset focus when switching view
-                updateFocusedFlagUI();
+                clearAllFocus();
                 passportViewBtn.classList.add('active'); 
                 visaViewBtn.classList.remove('active'); 
                 updateLegends(); 

@@ -509,30 +509,42 @@
                         return { status: 'vr', stay: 0, passport: null, visa: 'Visa Required' };
                     }
             }
-            // Original logic for all other countries
-            let bestOption = { status: 'na', stay: -1, passport: null };
-            for (const passport of passports) {
+
+            // Create a list of all options for the given country, preserving original order for tie-breaking
+            const options = passports.map((passport, index) => {
                 let visaInfo = allVisaData[passport]?.[countryCode] || { status: 'na', stay: 0, visa: 'No data' };
+
                 if (visaInfo.status === 'na' && visaInfo.visa) {
                     const derivedStatus = getVisaStatusFromString(visaInfo.visa);
                     if (derivedStatus !== 'na') {
                         visaInfo = { ...visaInfo, status: derivedStatus };
                     }
                 }
-                const currentPriority = statusPriority[visaInfo.status];
-                const bestPriority = statusPriority[bestOption.status];
-                // 1. Primary Tie-break: Visa Status Priority
-                if (currentPriority < bestPriority) {
-                    bestOption = { ...visaInfo, passport };
-                } 
-                // 2. Secondary Tie-break: Length of Stay
-                else if (currentPriority === bestPriority) {
-                    if (visaInfo.stay > bestOption.stay) {
-                        bestOption = { ...visaInfo, passport };
-                    }
+
+                return {
+                    ...visaInfo,
+                    passport,
+                    priority: statusPriority[visaInfo.status],
+                    order: index // Store original order for final tie-breaker
+                };
+            });
+
+            // Sort the options to find the best one
+            options.sort((a, b) => {
+                // 1. By visa status priority (lower is better)
+                if (a.priority !== b.priority) {
+                    return a.priority - b.priority;
                 }
-            }
-            return bestOption;
+                // 2. By length of stay (higher is better)
+                if (a.stay !== b.stay) {
+                    return b.stay - a.stay;
+                }
+                // 3. By original passport order (lower index is better)
+                return a.order - b.order;
+            });
+
+            // The best option is the first one in the sorted list
+            return options[0];
         }
         
         function handleLegendClick(type, value, clickedElement) {
@@ -630,12 +642,6 @@
             }
         }
         
-        /**
-         * MODIFIED FUNCTION
-         * This function updates the map colors. When a legend item is focused, it now
-         * reduces the opacity of non-selected countries' fills AND borders to create
-         * a stronger "de-emphasis" effect.
-         */
         function updateMapColors() {
             if (!map || !map.isStyleLoaded()) return;
             const colorExpression = ['case'];

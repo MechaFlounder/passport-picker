@@ -305,7 +305,9 @@
                     'filter': ['==', ['get', 'disputed'], 'false'], // Only show non-disputed areas
                     'paint': {
                         'fill-color': statusColors['no-passport'],
-                        'fill-opacity': 1.0
+                        'fill-opacity': 1.0,
+                        'fill-outline-color': 'transparent',
+                        'fill-antialias': true
                     }
                 });
                 
@@ -701,6 +703,7 @@
             
             const colorExpression = ['case'];
             const opacityExpression = ['case'];
+            const saturationExpression = ['case'];
             const passportsToConsider = activePassports;
             const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
             const allMapCodesA2 = Object.keys(isoA3toA2).map(key => isoA3toA2[key]);
@@ -728,7 +731,8 @@
                         } else {
                             if (bestOption.passport === Array.from(value)[0]) isHighlighted = true;
                         }
-                        opacityExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2], isHighlighted ? 1.0 : 0.2);
+                        opacityExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2], isHighlighted ? 1.0 : 0.1);
+                        saturationExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2], isHighlighted ? 0 : -1);
                     }
                 });
             }
@@ -737,12 +741,16 @@
             map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
 
             if (focusedLegend) {
-                opacityExpression.push(0.2);
+                opacityExpression.push(0.1);
+                saturationExpression.push(-1);
                 map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
-                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.2);
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.1);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-color-transition', { duration: 0 });
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-saturation', saturationExpression);
             } else {
                 map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
                 map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-saturation', 0);
             }
         }
 

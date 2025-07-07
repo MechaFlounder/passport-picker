@@ -206,21 +206,22 @@
 
         async function initializeMap(token) {
             mapboxgl.accessToken = token;
-            map = new mapboxgl.Map({
-                container: 'map-container',
-                style: 'mapbox://styles/mapbox/light-v11', // A simple, clean base style
-                center: [0, 20],
-                zoom: 1.5,
-                projection: 'equalEarth'
-                transformRequest: (url, resourceType) => {
-        		if (resourceType === 'Source' || resourceType === 'Tile') {
-            		// Add the worldview parameter to all tile and source requests.
-            		return {
-                		url: url + '&worldview=US'
-            		}
-       		 }
-    	}
-            });
+map = new mapboxgl.Map({
+    container: 'map-container',
+    style: 'mapbox://styles/mapbox/light-v11',
+    center: [0, 20],
+    zoom: 1.5,
+    projection: 'equalEarth',
+    // ADD THIS TRANSFORM REQUEST OPTION
+    transformRequest: (url, resourceType) => {
+        if (resourceType === 'Source' || resourceType === 'Tile') {
+            // Add the worldview parameter to all tile and source requests.
+            return {
+                url: url + '&worldview=US'
+            }
+        }
+    }
+});
 
             const popup = new mapboxgl.Popup({
                 closeButton: false,

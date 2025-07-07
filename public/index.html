@@ -86,7 +86,7 @@
         <div class="text-center max-w-4xl w-full flex flex-col h-full mx-auto p-4">
             <header class="py-4 flex-shrink-0">
                 <h1 class="text-5xl md:text-6xl font-bold text-gray-900">Passport Picker</h1>
-                <p class="text-xl text-gray-600 mt-4">Select all of your passports. The first one you pick will win tiebreaks.</p>
+                <p class="text-xl text-gray-600 mt-4">Select your passports. The first one you pick will win tiebreaks.</p>
             </header>
             
             <div id="selected-passports-tray" class="w-full max-w-4xl my-6 flex-shrink-0">
@@ -206,24 +206,27 @@
 
         async function initializeMap(token) {
             mapboxgl.accessToken = token;
-map = new mapboxgl.Map({
-    container: 'map-container',
-    style: 'mapbox://styles/mapbox/light-v11',
-    center: [0, 20],
-    zoom: 1.5,
-    projection: 'equalEarth',
-    // THIS IS THE CORRECTED TRANSFORM REQUEST
-    transformRequest: (url, resourceType) => {
-        if ((resourceType === 'Source' || resourceType === 'Tile') && !url.includes('worldview=')) {
-            // Add the worldview parameter only if it's not already present.
-            const newUrl = new URL(url);
-            newUrl.searchParams.set('worldview', 'US');
-            return {
-                url: newUrl.toString()
-            };
-        }
-    }
-});
+            map = new mapboxgl.Map({
+                container: 'map-container',
+                // Use a blank style to have full control
+                style: {
+                    "version": 8,
+                    "name": "Blank",
+                    "sources": {},
+                    "layers": [
+                        {
+                            "id": "background",
+                            "type": "background",
+                            "paint": {
+                                "background-color": "#f0f2f5" // A neutral light gray
+                            }
+                        }
+                    ]
+                },
+                center: [0, 20],
+                zoom: 1.5,
+                projection: 'equalEarth'
+            });
 
             const popup = new mapboxgl.Popup({
                 closeButton: false,
@@ -231,19 +234,11 @@ map = new mapboxgl.Map({
             });
 
             map.on('load', () => {
-                // Hide all layers from the base style except for the background.
-                const allLayers = map.getStyle().layers;
-                for (const layer of allLayers) {
-                    if (layer.id !== 'background') {
-                        map.setLayoutProperty(layer.id, 'visibility', 'none');
-                    }
-                }
-                
-                // Add our custom source for country boundaries
+                // Add our custom source for country boundaries, now with the worldview set directly
                 map.addSource('countries', {
                     'type': 'vector',
                     'url': 'mapbox://mapbox.country-boundaries-v1',
-		    'worldview': 'US'
+                    'worldview': 'US' // This now works because we control the style
                 });
 
                 // Add our custom fill layer for coloring countries
@@ -280,7 +275,7 @@ map = new mapboxgl.Map({
                         if (countryCodeA2 === 'XK') {
                             countryName = 'Kosovo';
                         } else if (countryCodeA3 === 'FLK') {
-                            countryName = 'Falkland Islands / Islas Malvinas';
+                            countryName = 'Falkland Islands';
                         }
 
                         const contentHTML = generateInfoContent(countryCodeA2);

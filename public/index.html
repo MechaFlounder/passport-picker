@@ -1028,6 +1028,36 @@
                 updateLegends();
             }
         }
+        
+        function handleTouchStart(e) {
+            if (e.target.tagName !== 'IMG') return;
+            draggedElement = e.target;
+            draggedElement.classList.add('dragging');
+        }
+
+        function handleTouchMove(e) {
+            if (!draggedElement) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const container = draggedElement.parentElement;
+            const afterElement = getDragAfterElement(container, touch.clientX, touch.clientY);
+            if (afterElement == null) {
+                container.appendChild(draggedElement);
+            } else {
+                container.insertBefore(draggedElement, afterElement);
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (!draggedElement) return;
+            const container = draggedElement.parentElement;
+            handleDrop({
+                preventDefault: () => {},
+                currentTarget: container
+            });
+            draggedElement.classList.remove('dragging');
+            draggedElement = null;
+        }
 
         // --- INITIALIZATION ---
         async function initialize() {
@@ -1097,6 +1127,9 @@
                 container.addEventListener('dragend', handleDragEnd);
                 container.addEventListener('dragover', handleDragOver);
                 container.addEventListener('drop', handleDrop);
+                container.addEventListener('touchstart', handleTouchStart, {passive: false});
+                container.addEventListener('touchmove', handleTouchMove, {passive: false});
+                container.addEventListener('touchend', handleTouchEnd);
             });
 
             // Add listener for tab visibility changes to prevent rendering issues

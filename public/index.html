@@ -135,7 +135,7 @@
 
         <!-- Legend Container (Centered) -->
         <div class="absolute bottom-20 sm:bottom-4 inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-auto max-w-4xl pointer-events-auto">
-            <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-2">
+            <div class="bg-transparent rounded-xl p-2">
                 <div id="visa-status-legend" class="flex flex-wrap justify-center gap-x-3 gap-y-1">
                     <!-- Legend items are now generated dynamically -->
                 </div>
@@ -145,10 +145,10 @@
             </div>
         </div>
 
-        <!-- Selected Passports Container (Bottom Right) -->
-        <div class="absolute bottom-4 right-4 pointer-events-auto">
-            <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-3">
-                 <div id="map-selected-flags" class="flex items-center gap-2 flex-wrap">
+        <!-- Selected Passports Container (Top Right) -->
+        <div class="absolute top-4 right-4 pointer-events-auto">
+            <div class="bg-transparent rounded-xl p-3">
+                 <div id="map-selected-flags" class="flex flex-col space-y-2">
                      <!-- Selected flags on map view appear here -->
                 </div>
             </div>

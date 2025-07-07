@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Passport Picker - Visa-Free Travel Map</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Mapbox GL JS -->
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
     
@@ -70,7 +69,6 @@
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased overflow-hidden">
 
-    <!-- Loading Overlay -->
     <div id="loader" class="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-[10000]" style="display: none; opacity: 0;">
         <div class="text-center">
             <svg class="animate-spin h-10 w-10 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -81,7 +79,6 @@
         </div>
     </div>
 
-    <!-- Landing Page -->
     <div id="landing-page" class="h-screen w-screen flex flex-col items-center bg-gray-100 p-4 transition-opacity duration-500">
         <div class="text-center max-w-4xl w-full flex flex-col h-full">
             <header class="py-4 flex-shrink-0">
@@ -100,8 +97,7 @@
             </div>
 
             <div id="flag-grid" class="flex-grow overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 p-4 bg-white rounded-lg shadow-inner w-full">
-                <!-- Flags will be generated here -->
-            </div>
+                </div>
 
             <div id="selected-passports-tray" class="w-full max-w-4xl mt-auto pt-4 flex-shrink-0">
                  <div class="bg-white rounded-lg shadow-lg p-4">
@@ -114,18 +110,15 @@
         </div>
     </div>
 
-    <!-- Map View -->
     <div id="map-view" class="h-screen w-screen absolute top-0 left-0 opacity-0 pointer-events-none transition-opacity duration-500">
         <div id="map-container"></div>
 
-        <!-- Back Button -->
         <div class="absolute top-4 left-4 z-10">
             <button id="back-to-landing-btn" class="bg-white bg-opacity-90 backdrop-blur-sm rounded-full shadow-lg p-2 hover:bg-gray-200 transition-colors">
                 <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </button>
         </div>
 
-        <!-- View Toggle -->
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
             <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-full shadow-lg p-1 flex">
                 <button id="visa-view-btn" class="toggle-btn active text-sm font-semibold py-2 px-6 rounded-full">Visa Status</button>
@@ -133,24 +126,19 @@
             </div>
         </div>
 
-        <!-- Legend Container (Centered) -->
-        <div class="absolute bottom-6 left-0 right-0 px-2 md:bottom-4 md:left-1/2 md:w-auto md:px-0 md:-translate-x-1/2 pointer-events-auto">
+        <div class="absolute bottom-16 left-0 right-0 px-2 md:bottom-4 md:left-1/2 md:w-auto md:px-0 md:-translate-x-1/2 pointer-events-auto">
             <div class="bg-transparent">
                 <div id="visa-status-legend" class="flex flex-wrap justify-center gap-x-3 gap-y-1">
-                    <!-- Legend items are now generated dynamically -->
-                </div>
+                    </div>
                 <div id="best-passport-legend" class="hidden flex-wrap justify-center gap-2">
-                    <!-- Passport legend items will be generated here -->
-                </div>
+                    </div>
             </div>
         </div>
 
-        <!-- Selected Passports Container (Top Right) -->
         <div class="absolute top-4 right-4 pointer-events-auto">
             <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-3">
                  <div id="map-selected-flags" class="flex flex-col items-center gap-2">
-                     <!-- Selected flags on map view appear here -->
-                </div>
+                     </div>
             </div>
         </div>
     </div>

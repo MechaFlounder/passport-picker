@@ -243,7 +243,6 @@
             mapboxgl.accessToken = token;
             map = new mapboxgl.Map({
                 container: 'map-container',
-                // Use a blank style to have full control
                 style: {
                     "version": 8,
                     "name": "Blank",
@@ -260,7 +259,7 @@
                 },
                 center: [0, 20],
                 zoom: 1.5,
-                projection: 'winkelTripel'
+                projection: 'mercator'
             });
             const popup = new mapboxgl.Popup({
                 closeButton: false,

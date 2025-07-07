@@ -91,6 +91,9 @@
             transform: scale(1.1);
             box-shadow: 0 0 0 2px white, 0 0 0 4px #3B82F6;
         }
+        .dragging {
+            opacity: 0.4;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased overflow-hidden">
@@ -210,6 +213,7 @@
         let activePassports = []; // Passports currently toggled on for map view
         let focusedLegend = null; // To track legend item focus
         let notificationTimeout;
+        let draggedCode = null; // For drag and drop
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
 
         // --- DATA MAPPING & PRIORITIES ---
@@ -885,6 +889,7 @@
                 flagImg.className = 'h-8 rounded-md shadow-sm cursor-pointer';
                 flagImg.dataset.code = code;
                 flagImg.title = countryCodeToNameMap[code];
+                flagImg.draggable = true;
                 mapSelectedFlags.appendChild(flagImg);
             });
             updateActiveFlagsUI();
@@ -900,6 +905,7 @@
                     flagImg.className = 'h-8 rounded-md shadow-sm cursor-pointer';
                     flagImg.dataset.code = code;
                     flagImg.title = `Click to remove ${countryCodeToNameMap[code]}`;
+                    flagImg.draggable = true;
                     selectedFlagsContainer.appendChild(flagImg);
                 });
             }
@@ -973,6 +979,55 @@
             updateLegends();
         }
 
+        function handleDragStart(e) {
+            if (e.target.tagName !== 'IMG') return;
+            draggedCode = e.target.dataset.code;
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragEnd(e) {
+            if (e.target.tagName !== 'IMG') return;
+            e.target.classList.remove('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            if (!draggedCode) return;
+
+            const targetElement = e.target.closest('img');
+            if (!targetElement || targetElement.dataset.code === draggedCode) {
+                draggedCode = null;
+                return;
+            }
+
+            const targetCode = targetElement.dataset.code;
+            
+            const fromIndex = selectedPassports.indexOf(draggedCode);
+            const toIndex = selectedPassports.indexOf(targetCode);
+            
+            const [item] = selectedPassports.splice(fromIndex, 1);
+            selectedPassports.splice(toIndex, 0, item);
+            
+            const currentActiveSet = new Set(activePassports);
+            activePassports = selectedPassports.filter(p => currentActiveSet.has(p));
+
+            focusedLegend = null;
+
+            if (mapView.style.opacity === '1') {
+                updateMapSelectedFlags();
+                updateMapColors();
+                updateLegends();
+            } else {
+                updateSelectedTray();
+            }
+
+            draggedCode = null;
+        }
+
         // --- INITIALIZATION ---
         async function initialize() {
             loaderText.textContent = 'Initializing Map...';
@@ -1034,6 +1089,14 @@
             });
             selectedFlagsContainer.addEventListener('click', handleTrayFlagClick);
             mapSelectedFlags.addEventListener('click', handleMapFlagClick);
+
+            // Drag and Drop Listeners
+            [selectedFlagsContainer, mapSelectedFlags].forEach(container => {
+                container.addEventListener('dragstart', handleDragStart);
+                container.addEventListener('dragend', handleDragEnd);
+                container.addEventListener('dragover', handleDragOver);
+                container.addEventListener('drop', handleDrop);
+            });
 
             // Add listener for tab visibility changes to prevent rendering issues
             document.addEventListener('visibilitychange', () => {

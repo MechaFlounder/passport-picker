@@ -134,8 +134,8 @@
         </div>
 
         <!-- Legend Container (Centered) -->
-        <div class="absolute bottom-20 left-0 right-0 px-2 md:bottom-4 md:left-1/2 md:w-auto md:px-0 md:-translate-x-1/2 pointer-events-auto">
-            <div class="bg-transparent">
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 w-auto max-w-4xl mx-auto pointer-events-auto">
+            <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-2">
                 <div id="visa-status-legend" class="flex flex-wrap justify-center gap-x-3 gap-y-1">
                     <!-- Legend items are now generated dynamically -->
                 </div>
@@ -145,10 +145,10 @@
             </div>
         </div>
 
-        <!-- Selected Passports Container (Top Right) -->
-        <div class="absolute top-4 right-4 pointer-events-auto">
+        <!-- Selected Passports Container (Bottom Right) -->
+        <div class="absolute bottom-4 right-4 pointer-events-auto">
             <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-xl shadow-lg p-3">
-                 <div id="map-selected-flags" class="flex flex-col items-center gap-2">
+                 <div id="map-selected-flags" class="flex items-center gap-2 flex-wrap">
                      <!-- Selected flags on map view appear here -->
                 </div>
             </div>
@@ -507,11 +507,7 @@
                     if (currentView === 'visa') {
                         fillColor = statusColors[bestOption.status] || statusColors['na'];
                     } else { // Best Passport View
-                        if (bestOption.status === 'na') {
-                             fillColor = statusColors['na'];
-                        } else {
-                            fillColor = bestOption.passport ? (sessionPassportColors[bestOption.passport] || statusColors['na']) : statusColors['na'];
-                        }
+                        fillColor = bestOption.passport ? (sessionPassportColors[bestOption.passport] || statusColors['na']) : statusColors['na'];
                         outlineColor = getContrastingBorderColor(fillColor);
                     }
                     

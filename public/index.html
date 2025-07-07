@@ -204,6 +204,7 @@
         let hoveredCountryId = null;
         const MAP_LAYER_ID = 'country-fills';
         const FALKLANDS_LAYER_ID = 'falklands-fill';
+        const KASHMIR_LAYER_ID = 'kashmir-fill';
 
         async function initializeMap(token) {
             mapboxgl.accessToken = token;
@@ -242,13 +243,21 @@
                     'worldview': 'US' // This is now the single source of truth for boundaries
                 });
 
-                // Add our custom fill layer for coloring countries, EXCLUDING the falklands
+                // Define filters for disputed territories
+                const kashmirNames = ['Jammu and Kashmir', 'Azad Kashmir', 'Gilgit-Baltistan', 'Aksai Chin', 'Ladakh'];
+                const KASHMIR_FILTER = ['in', ['get', 'name_en'], ['literal', kashmirNames]];
+
+                // Add our custom fill layer for coloring countries, EXCLUDING disputed territories
                 map.addLayer({
                     'id': MAP_LAYER_ID,
                     'type': 'fill',
                     'source': 'countries',
                     'source-layer': 'country_boundaries',
-                    'filter': ['!=', ['get', 'iso_3166_1_alpha_3'], 'FLK'], // Exclude Falkland Islands
+                    'filter': [
+                        'all',
+                        ['!=', ['get', 'iso_3166_1_alpha_3'], 'FLK'], // Exclude Falkland Islands
+                        ['!', KASHMIR_FILTER] // Exclude Kashmir region
+                    ],
                     'paint': {
                         'fill-color': statusColors['no-passport'],
                         'fill-opacity': 1.0
@@ -262,6 +271,19 @@
                     'source': 'countries',
                     'source-layer': 'country_boundaries',
                     'filter': ['==', ['get', 'iso_3166_1_alpha_3'], 'FLK'], // Only Falkland Islands
+                    'paint': {
+                        'fill-color': statusColors['na'], // Statically set to 'No Data' color
+                        'fill-opacity': 1.0
+                    }
+                });
+
+                // Add a dedicated layer for the Kashmir region
+                map.addLayer({
+                    'id': KASHMIR_LAYER_ID,
+                    'type': 'fill',
+                    'source': 'countries',
+                    'source-layer': 'country_boundaries',
+                    'filter': KASHMIR_FILTER,
                     'paint': {
                         'fill-color': statusColors['na'], // Statically set to 'No Data' color
                         'fill-opacity': 1.0
@@ -282,7 +304,7 @@
                 });
 
                 // --- Map Interactions ---
-                const interactiveLayerIds = [MAP_LAYER_ID, FALKLANDS_LAYER_ID];
+                const interactiveLayerIds = [MAP_LAYER_ID, FALKLANDS_LAYER_ID, KASHMIR_LAYER_ID];
 
                 map.on('mousemove', interactiveLayerIds, (e) => {
                     if (e.features.length > 0) {
@@ -300,15 +322,20 @@
                         let countryName = feature.properties.name_en;
                         const countryCodeA3 = feature.properties.iso_3166_1_alpha_3;
                         const countryCodeA2 = isoA3toA2[countryCodeA3];
+                        let contentHTML;
 
-                        // Hardcode specific names to ensure consistency
-                        if (countryCodeA3 === 'FLK') {
+                        if (kashmirNames.includes(countryName)) {
+                            countryName = 'Disputed Territory (Kashmir)';
+                            contentHTML = '<p>No visa data available.</p>';
+                        } else if (countryCodeA3 === 'FLK') {
                             countryName = 'Falkland Islands / Islas Malvinas';
+                            contentHTML = generateInfoContent(countryCodeA2);
                         } else if (countryCodeA2 === 'XK') {
                             countryName = 'Kosovo';
+                            contentHTML = generateInfoContent(countryCodeA2);
+                        } else {
+                            contentHTML = generateInfoContent(countryCodeA2);
                         }
-
-                        const contentHTML = generateInfoContent(countryCodeA2);
 
                         const popupHTML = `<h3 class="font-bold text-lg mb-2">${countryName}</h3><div>${contentHTML}</div>`;
                         popup.setLngLat(e.lngLat).setHTML(popupHTML).addTo(map);

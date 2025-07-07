@@ -212,13 +212,15 @@ map = new mapboxgl.Map({
     center: [0, 20],
     zoom: 1.5,
     projection: 'equalEarth',
-    // ADD THIS TRANSFORM REQUEST OPTION
+    // THIS IS THE CORRECTED TRANSFORM REQUEST
     transformRequest: (url, resourceType) => {
-        if (resourceType === 'Source' || resourceType === 'Tile') {
-            // Add the worldview parameter to all tile and source requests.
+        if ((resourceType === 'Source' || resourceType === 'Tile') && !url.includes('worldview=')) {
+            // Add the worldview parameter only if it's not already present.
+            const newUrl = new URL(url);
+            newUrl.searchParams.set('worldview', 'US');
             return {
-                url: url + '&worldview=US'
-            }
+                url: newUrl.toString()
+            };
         }
     }
 });

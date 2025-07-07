@@ -84,7 +84,7 @@
             opacity: 0.6;
             transform: scale(0.95);
         }
-        #map-selected-flags img {
+        #map-selected-flags img, #selected-flags-container img {
             transition: all 0.2s ease-in-out;
         }
         .legend-item.focused-legend-item {
@@ -93,6 +93,22 @@
         }
         .dragging {
             opacity: 0.4;
+        }
+        .drag-over-horizontal::after {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 100%;
+            background: #3B82F6;
+            margin-left: -2px; /* Center the line */
+        }
+         .drag-over-vertical::after {
+            content: '';
+            display: block;
+            height: 4px;
+            width: 100%;
+            background: #3B82F6;
+            margin-top: -2px; /* Center the line */
         }
     </style>
 </head>
@@ -213,7 +229,7 @@
         let activePassports = []; // Passports currently toggled on for map view
         let focusedLegend = null; // To track legend item focus
         let notificationTimeout;
-        let draggedCode = null; // For drag and drop
+        let draggedElement = null; // For drag and drop
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
 
         // --- DATA MAPPING & PRIORITIES ---
@@ -953,36 +969,51 @@
 
         function handleDragStart(e) {
             if (e.target.tagName !== 'IMG') return;
-            draggedCode = e.target.dataset.code;
-            e.target.classList.add('dragging');
+            draggedElement = e.target;
+            draggedElement.classList.add('dragging');
         }
 
         function handleDragEnd(e) {
-            if (e.target.tagName !== 'IMG') return;
-            e.target.classList.remove('dragging');
+            if (draggedElement) {
+                draggedElement.classList.remove('dragging');
+            }
+            draggedElement = null;
         }
 
         function handleDragOver(e) {
             e.preventDefault();
+            const container = e.currentTarget;
+            const afterElement = getDragAfterElement(container, e.clientX, e.clientY);
+            const draggable = document.querySelector('.dragging');
+            if (draggable) {
+                 if (afterElement == null) {
+                    container.appendChild(draggable);
+                } else {
+                    container.insertBefore(draggable, afterElement);
+                }
+            }
+        }
+
+        function getDragAfterElement(container, x, y) {
+            const draggableElements = [...container.querySelectorAll('img:not(.dragging)')];
+            const isHorizontal = container.id === 'selected-flags-container';
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = isHorizontal ? (x - box.left - box.width / 2) : (y - box.top - box.height / 2);
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
 
         function handleDrop(e) {
             e.preventDefault();
-            if (!draggedCode) return;
-
-            const targetElement = e.target.closest('img');
-            if (!targetElement || targetElement.dataset.code === draggedCode) {
-                draggedCode = null;
-                return;
-            }
-
-            const targetCode = targetElement.dataset.code;
-            
-            const fromIndex = selectedPassports.indexOf(draggedCode);
-            const toIndex = selectedPassports.indexOf(targetCode);
-            
-            const [item] = selectedPassports.splice(fromIndex, 1);
-            selectedPassports.splice(toIndex, 0, item);
+            const newOrder = [...e.currentTarget.querySelectorAll('img')].map(img => img.dataset.code);
+            selectedPassports = newOrder;
             
             const currentActiveSet = new Set(activePassports);
             activePassports = selectedPassports.filter(p => currentActiveSet.has(p));
@@ -990,14 +1021,9 @@
             focusedLegend = null;
 
             if (mapView.style.opacity === '1') {
-                updateMapSelectedFlags();
                 updateMapColors();
                 updateLegends();
-            } else {
-                updateSelectedTray();
             }
-
-            draggedCode = null;
         }
 
         // --- INITIALIZATION ---

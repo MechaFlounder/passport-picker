@@ -554,6 +554,49 @@
             return bestOption;
         }
         
+        function handleLegendHover(type, value) {
+            if (!map || !map.isStyleLoaded() || selectedPassports.length === 0) return;
+
+            const opacityExpression = ['case'];
+            const features = map.querySourceFeatures('countries', {
+                sourceLayer: 'country_boundaries',
+                filter: ['==', ['get', 'disputed'], 'false']
+            });
+            const allMapCodesA2 = new Set(features.map(f => f.properties.iso_3166_1));
+
+            allMapCodesA2.forEach(countryCodeA2 => {
+                if (!countryCodeA2) return;
+
+                const bestOption = getBestOption(countryCodeA2, selectedPassports);
+                let isHighlighted = false;
+
+                if (type === 'visa') {
+                    // value is a Set of statuses
+                    if (value.has(bestOption.status)) {
+                        isHighlighted = true;
+                    }
+                } else { // type is 'passport'
+                    // value is a single passport code
+                    if (bestOption.passport === value) {
+                        isHighlighted = true;
+                    }
+                }
+
+                opacityExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2], isHighlighted ? 1.0 : 0.2);
+            });
+
+            opacityExpression.push(0.2); // Default for anything not matched
+
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
+            map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.2);
+        }
+
+        function handleLegendMouseOut() {
+            if (!map || !map.isStyleLoaded()) return;
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
+            map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+        }
+
         function updateLegends() {
             sessionPassportColors = assignPassportColors(selectedPassports);
             visaStatusLegend.innerHTML = '';
@@ -585,23 +628,29 @@
                     if (!color || !text || status === 'no-passport') return;
 
                     if (!legendGroups[color]) {
-                        legendGroups[color] = { texts: new Set(), priority: priority };
+                        legendGroups[color] = { texts: new Set(), statuses: new Set(), priority: priority };
                     }
                     legendGroups[color].texts.add(text);
+                    legendGroups[color].statuses.add(status);
                 });
 
                 const sortedGroups = Object.entries(legendGroups).map(([color, data]) => ({
                     color,
                     texts: Array.from(data.texts),
+                    statuses: data.statuses,
                     priority: data.priority
                 })).sort((a, b) => a.priority - b.priority);
 
                 sortedGroups.forEach(group => {
                     const legendItem = document.createElement('div');
-                    legendItem.className = 'text-xs font-medium px-3 py-1 rounded-full';
+                    legendItem.className = 'text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200 hover:scale-110';
                     legendItem.style.backgroundColor = group.color;
                     legendItem.style.color = getContrastingTextColor(group.color);
                     legendItem.textContent = group.texts.join(' / ');
+                    
+                    legendItem.addEventListener('mouseover', () => handleLegendHover('visa', group.statuses));
+                    legendItem.addEventListener('mouseout', handleLegendMouseOut);
+
                     visaStatusLegend.appendChild(legendItem);
                 });
 
@@ -615,10 +664,14 @@
                         passportName = 'USA';
                     }
                     const legendItem = document.createElement('div');
-                    legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full';
+                    legendItem.className = 'flex items-center text-xs font-medium px-2 py-1 rounded-full cursor-pointer transition-transform duration-200 hover:scale-110';
                     legendItem.style.backgroundColor = color;
                     legendItem.style.color = getContrastingTextColor(color);
                     legendItem.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full" style="background-color: ${color};"></span>${passportName}`;
+                    
+                    legendItem.addEventListener('mouseover', () => handleLegendHover('passport', passport));
+                    legendItem.addEventListener('mouseout', handleLegendMouseOut);
+                    
                     bestPassportLegend.appendChild(legendItem);
                 });
             }

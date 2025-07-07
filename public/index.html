@@ -78,15 +78,11 @@
             animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
         }
 
-        /* Styles for focused and desaturated flags */
-        .focused-flag {
-            box-shadow: 0 0 0 3px #3B82F6;
-            border-radius: 0.375rem; /* 6px */
-            transform: scale(1.05);
-        }
+        /* Styles for toggled-off flags */
         .desaturated-flag {
             filter: grayscale(100%);
             opacity: 0.6;
+            transform: scale(0.95);
         }
         #map-selected-flags img {
             transition: all 0.2s ease-in-out;
@@ -211,7 +207,7 @@
         let currentView = 'visa';
         let sessionPassportColors = {};
         let selectedPassports = [];
-        let focusedPassport = null; // To track single-passport focus view
+        let activePassports = []; // Passports currently toggled on for map view
         let focusedLegend = null; // To track legend item focus
         let notificationTimeout;
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
@@ -582,7 +578,7 @@
             }
 
             const { type, value } = focusedLegend;
-            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
+            const passportsToConsider = activePassports;
             const opacityExpression = ['case'];
             const features = map.querySourceFeatures('countries', {
                 sourceLayer: 'country_boundaries',
@@ -601,7 +597,7 @@
                         isHighlighted = true;
                     }
                 } else { // type is 'passport'
-                    if (bestOption.passport === value) {
+                    if (bestOption.passport === Array.from(value)[0]) {
                         isHighlighted = true;
                     }
                 }
@@ -638,7 +634,7 @@
             sessionPassportColors = assignPassportColors(selectedPassports);
             visaStatusLegend.innerHTML = '';
             bestPassportLegend.innerHTML = '';
-            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
+            const passportsToConsider = activePassports;
 
             if (currentView === 'visa') {
                 visaStatusLegend.style.display = 'flex';
@@ -694,7 +690,7 @@
             } else { // Best Passport View
                 visaStatusLegend.style.display = 'none';
                 bestPassportLegend.style.display = 'flex';
-                selectedPassports.forEach((passport) => {
+                passportsToConsider.forEach((passport) => {
                     const color = sessionPassportColors[passport];
                     let passportName = countryCodeToNameMap[passport] || passport;
                     if (passport === 'US') {
@@ -727,7 +723,7 @@
             if (!map || !map.isStyleLoaded()) return;
             
             const colorExpression = ['case'];
-            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
+            const passportsToConsider = activePassports;
             const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
 
             if (passportsToConsider.length > 0) {
@@ -760,7 +756,7 @@
         }
 
         function generateInfoContent(countryCodeA2) {
-            const passportsToConsider = focusedPassport ? [focusedPassport] : selectedPassports;
+            const passportsToConsider = activePassports;
             if (passportsToConsider.length === 0) return '<p class="text-gray-500">Select a passport to see visa info.</p>';
             if (!countryCodeA2 || !allVisaData) return '<p class="text-gray-500">No visa data available for this country.</p>';
 
@@ -849,8 +845,7 @@
                     allVisaData['CN']['MO'] = { ...specialPermitData };
                 }
             
-                updateLegends();
-                updateMapColors();
+                resetMapFocus();
                 updateMapSelectedFlags();
 
                 landingPage.style.opacity = '0';
@@ -870,20 +865,14 @@
             }
         }
         
-        function updateFocusedFlagUI() {
+        function updateActiveFlagsUI() {
             const flags = mapSelectedFlags.querySelectorAll('img');
             flags.forEach(flag => {
                 const code = flag.dataset.code;
-                if (focusedPassport === null) {
-                    flag.classList.remove('focused-flag', 'desaturated-flag');
+                if (activePassports.includes(code)) {
+                    flag.classList.remove('desaturated-flag');
                 } else {
-                    if (code === focusedPassport) {
-                        flag.classList.add('focused-flag');
-                        flag.classList.remove('desaturated-flag');
-                    } else {
-                        flag.classList.add('desaturated-flag');
-                        flag.classList.remove('focused-flag');
-                    }
+                    flag.classList.add('desaturated-flag');
                 }
             });
         }
@@ -898,7 +887,7 @@
                 flagImg.title = countryCodeToNameMap[code];
                 mapSelectedFlags.appendChild(flagImg);
             });
-            updateFocusedFlagUI();
+            updateActiveFlagsUI();
         }
         function updateSelectedTray() {
             selectedFlagsContainer.innerHTML = '';
@@ -952,30 +941,34 @@
         }
 
         function handleMapFlagClick(event) {
-            if (currentView !== 'visa') return;
-
             const target = event.target;
-            if (target.tagName === 'IMG') {
-                const code = target.dataset.code;
-                if (!code) return;
+            if (target.tagName !== 'IMG') return;
+            
+            const code = target.dataset.code;
+            if (!code) return;
 
-                if (focusedPassport === code) {
-                    focusedPassport = null; // Toggle off
-                } else {
-                    focusedPassport = code; // Select new
+            const index = activePassports.indexOf(code);
+            if (index > -1) {
+                // Prevent removing the last active passport
+                if (activePassports.length === 1) {
+                    showNotification('At least one passport must be active.');
+                    return;
                 }
-                
-                focusedLegend = null; // Clear legend focus
-                updateFocusedFlagUI();
-                updateMapColors();
-                updateLegends();
+                activePassports.splice(index, 1);
+            } else {
+                activePassports.push(code);
             }
+            
+            focusedLegend = null; // Clear legend focus when toggling flags
+            updateActiveFlagsUI();
+            updateMapColors();
+            updateLegends();
         }
 
-        function clearAllFocus() {
-            focusedPassport = null;
+        function resetMapFocus() {
+            activePassports = [...selectedPassports];
             focusedLegend = null;
-            updateFocusedFlagUI();
+            updateActiveFlagsUI();
             updateMapColors();
             updateLegends();
         }
@@ -1017,7 +1010,7 @@
                 }
             });
             viewMapBtn.addEventListener('click', () => {
-                focusedPassport = null;
+                activePassports = [...selectedPassports];
                 focusedLegend = null;
                 switchToMapView();
             });
@@ -1031,15 +1024,13 @@
                 currentView = 'visa'; 
                 visaViewBtn.classList.add('active'); 
                 passportViewBtn.classList.remove('active'); 
-                clearAllFocus();
+                resetMapFocus();
             });
             passportViewBtn.addEventListener('click', () => { 
                 currentView = 'passport';
-                clearAllFocus();
+                resetMapFocus();
                 passportViewBtn.classList.add('active'); 
                 visaViewBtn.classList.remove('active'); 
-                updateLegends(); 
-                updateMapColors(); 
             });
             selectedFlagsContainer.addEventListener('click', handleTrayFlagClick);
             mapSelectedFlags.addEventListener('click', handleMapFlagClick);

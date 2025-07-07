@@ -66,9 +66,25 @@
             box-shadow: 0 0 0 4px #3B82F6;
             transform: scale(1.05);
         }
+        
+        /* Shake animation for passport tray */
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake {
+            animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased overflow-hidden">
+
+    <!-- Notification -->
+    <div id="notification" class="fixed top-5 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg opacity-0 transition-all duration-300 pointer-events-none z-[11000] transform -translate-y-20">
+        <!-- Message will be set here by JavaScript -->
+    </div>
 
     <!-- Loading Overlay -->
     <div id="loader" class="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-[10000]" style="display: none; opacity: 0;">
@@ -171,11 +187,13 @@
         const selectedFlagsContainer = document.getElementById('selected-flags-container');
         const mapSelectedFlags = document.getElementById('map-selected-flags');
         const trayPlaceholder = document.getElementById('tray-placeholder');
+        const notification = document.getElementById('notification');
         
         let allVisaData = {};
         let currentView = 'visa';
         let sessionPassportColors = {};
         let selectedPassports = [];
+        let notificationTimeout;
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
 
         // --- DATA MAPPING & PRIORITIES ---
@@ -364,6 +382,17 @@
         }
         
         // --- CORE LOGIC ---
+        function showNotification(message, duration = 3000) {
+            if (notificationTimeout) clearTimeout(notificationTimeout);
+            
+            notification.textContent = message;
+            notification.classList.remove('opacity-0', '-translate-y-20');
+            
+            notificationTimeout = setTimeout(() => {
+                notification.classList.add('opacity-0', '-translate-y-20');
+            }, duration);
+        }
+
         const colorConverter = {
             isColorTooSimilar(hex1, hex2, threshold = 20) {
                 if (!hex1 || !hex2) return false;
@@ -773,6 +802,13 @@
                 selectedPassports = selectedPassports.filter(p => p !== code);
                 target.classList.remove('selected');
             } else {
+                if (selectedPassports.length >= 8) {
+                    showNotification('Maximum of 8 passports can be selected.');
+                    const tray = document.getElementById('selected-passports-tray');
+                    tray.classList.add('shake');
+                    setTimeout(() => tray.classList.remove('shake'), 820);
+                    return;
+                }
                 selectedPassports.push(code);
                 target.classList.add('selected');
             }

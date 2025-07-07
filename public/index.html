@@ -268,7 +268,21 @@
                     }
                 });
 
-                // Add a separate, explicit border layer to prevent doubling
+                // Add a white "casing" layer for the borders to ensure contrast
+                map.addLayer({
+                    'id': 'country-borders-casing',
+                    'type': 'line',
+                    'source': 'countries',
+                    'source-layer': 'country_boundaries',
+                    'layout': {},
+                    'paint': {
+                        'line-color': '#FFFFFF',
+                        'line-width': 1.5,
+                        'line-opacity': 0.8
+                    }
+                });
+
+                // Add a separate, explicit border layer on top of the casing for high contrast
                 map.addLayer({
                     'id': 'country-borders',
                     'type': 'line',
@@ -276,8 +290,8 @@
                     'source-layer': 'country_boundaries',
                     'layout': {},
                     'paint': {
-                        'line-color': '#333',
-                        'line-width': 0.5
+                        'line-color': '#333333',
+                        'line-width': 0.75
                     }
                 });
 

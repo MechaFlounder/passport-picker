@@ -244,15 +244,15 @@
                     'paint': {
                         'fill-color': [
                             'case',
-                            ['has', 'color'],
-                            ['get', 'color'],
+                            ['has', 'color', ['feature-state']],
+                            ['feature-state', 'color'],
                             statusColors['no-passport']
                         ],
                         'fill-opacity': 1.0,
                         'fill-outline-color': [
                             'case',
-                            ['has', 'outlineColor'],
-                            ['get', 'outlineColor'],
+                            ['has', 'outlineColor', ['feature-state']],
+                            ['feature-state', 'outlineColor'],
                             '#333'
                         ]
                     }

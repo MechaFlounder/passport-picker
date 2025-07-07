@@ -573,47 +573,6 @@
             }
             return bestOption;
         }
-
-        function updateMapOpacityForLegendFocus() {
-            if (!map || !map.isStyleLoaded() || !focusedLegend) {
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
-                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
-                return;
-            }
-
-            const { type, value } = focusedLegend;
-            const passportsToConsider = activePassports;
-            const opacityExpression = ['case'];
-            const features = map.querySourceFeatures('countries', {
-                sourceLayer: 'country_boundaries',
-                filter: ['==', ['get', 'disputed'], 'false']
-            });
-            const allMapCodesA2 = new Set(features.map(f => f.properties.iso_3166_1));
-
-            allMapCodesA2.forEach(countryCodeA2 => {
-                if (!countryCodeA2) return;
-
-                const bestOption = getBestOption(countryCodeA2, passportsToConsider);
-                let isHighlighted = false;
-
-                if (type === 'visa') {
-                    if (value.has(bestOption.status)) {
-                        isHighlighted = true;
-                    }
-                } else { // type is 'passport'
-                    if (bestOption.passport === Array.from(value)[0]) {
-                        isHighlighted = true;
-                    }
-                }
-
-                opacityExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2], isHighlighted ? 1.0 : 0.2);
-            });
-
-            opacityExpression.push(0.2); // Default for anything not matched
-
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
-            map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.2);
-        }
         
         function handleLegendClick(type, value, clickedElement) {
             // If the clicked item is already focused, unfocus it
@@ -631,7 +590,7 @@
                 clickedElement.classList.add('focused-legend-item');
             }
 
-            updateMapOpacityForLegendFocus();
+            updateMapColors();
         }
 
         function updateLegends() {
@@ -646,8 +605,7 @@
 
                 const applicableStatuses = new Set();
                 if (passportsToConsider.length > 0) {
-                    const features = map.querySourceFeatures('countries', { sourceLayer: 'country_boundaries' });
-                    const allMapCodesA2 = new Set(features.map(f => f.properties.iso_3166_1));
+                    const allMapCodesA2 = Object.keys(isoA3toA2).map(key => isoA3toA2[key]);
                     allMapCodesA2.forEach(countryCodeA2 => {
                         if (countryCodeA2) {
                             const bestOption = getBestOption(countryCodeA2, passportsToConsider);
@@ -727,16 +685,12 @@
             if (!map || !map.isStyleLoaded()) return;
             
             const colorExpression = ['case'];
+            const opacityExpression = ['case'];
             const passportsToConsider = activePassports;
             const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
+            const allMapCodesA2 = Object.keys(isoA3toA2).map(key => isoA3toA2[key]);
 
             if (passportsToConsider.length > 0) {
-                const features = map.querySourceFeatures('countries', { 
-                    sourceLayer: 'country_boundaries',
-                    filter: ['==', ['get', 'disputed'], 'false']
-                });
-                const allMapCodesA2 = new Set(features.map(f => f.properties.iso_3166_1));
-
                 allMapCodesA2.forEach(countryCodeA2 => {
                     if (!countryCodeA2) return;
                     
@@ -749,14 +703,32 @@
                         color = bestOption.passport ? (sessionPassportColors[bestOption.passport] || statusColors['na']) : statusColors['na'];
                     }
                     
-                    colorExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2]);
-                    colorExpression.push(color);
+                    colorExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2], color);
+
+                    if (focusedLegend) {
+                        const { type, value } = focusedLegend;
+                        let isHighlighted = false;
+                        if (type === 'visa') {
+                            if (value.has(bestOption.status)) isHighlighted = true;
+                        } else {
+                            if (bestOption.passport === Array.from(value)[0]) isHighlighted = true;
+                        }
+                        opacityExpression.push(['==', ['get', 'iso_3166_1'], countryCodeA2], isHighlighted ? 1.0 : 0.2);
+                    }
                 });
             }
 
             colorExpression.push(defaultColor); // Fallback color
             map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-            updateMapOpacityForLegendFocus();
+
+            if (focusedLegend) {
+                opacityExpression.push(0.2);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.2);
+            } else {
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+            }
         }
 
         function generateInfoContent(countryCodeA2) {

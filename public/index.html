@@ -225,7 +225,15 @@
                 },
                 center: [0, 20],
                 zoom: 1.5,
-                projection: 'equalEarth'
+                projection: 'equalEarth',
+                // Add the robust transformRequest to catch all tile/source requests.
+                transformRequest: (url, resourceType) => {
+                    if ((resourceType === 'Source' || resourceType === 'Tile') && !url.includes('worldview=')) {
+                        const newUrl = new URL(url);
+                        newUrl.searchParams.set('worldview', 'US');
+                        return { url: newUrl.toString() };
+                    }
+                }
             });
 
             const popup = new mapboxgl.Popup({
@@ -249,8 +257,20 @@
                     'source-layer': 'country_boundaries',
                     'paint': {
                         'fill-color': statusColors['no-passport'],
-                        'fill-opacity': 1.0,
-                        'fill-outline-color': '#333'
+                        'fill-opacity': 1.0
+                    }
+                });
+                
+                // EXPLICITLY ADD A BORDER LAYER THAT WE CONTROL
+                map.addLayer({
+                    'id': 'country-borders',
+                    'type': 'line',
+                    'source': 'countries',
+                    'source-layer': 'country_boundaries',
+                    'layout': {},
+                    'paint': {
+                        'line-color': '#333',
+                        'line-width': 0.5
                     }
                 });
 

@@ -225,15 +225,7 @@
                 },
                 center: [0, 20],
                 zoom: 1.5,
-                projection: 'equalEarth',
-                // Add the robust transformRequest to catch all tile/source requests.
-                transformRequest: (url, resourceType) => {
-                    if ((resourceType === 'Source' || resourceType === 'Tile') && !url.includes('worldview=')) {
-                        const newUrl = new URL(url);
-                        newUrl.searchParams.set('worldview', 'US');
-                        return { url: newUrl.toString() };
-                    }
-                }
+                projection: 'equalEarth'
             });
 
             const popup = new mapboxgl.Popup({
@@ -242,11 +234,11 @@
             });
 
             map.on('load', () => {
-                // Add our custom source for country boundaries, now with the worldview set directly
+                // Add our custom source for country boundaries, with the worldview set directly
                 map.addSource('countries', {
                     'type': 'vector',
                     'url': 'mapbox://mapbox.country-boundaries-v1',
-                    'worldview': 'US' // This now works because we control the style
+                    'worldview': 'US' // This is now the single source of truth for boundaries
                 });
 
                 // Add our custom fill layer for coloring countries
@@ -260,8 +252,8 @@
                         'fill-opacity': 1.0
                     }
                 });
-                
-                // EXPLICITLY ADD A BORDER LAYER THAT WE CONTROL
+
+                // Add a separate, explicit border layer to prevent doubling
                 map.addLayer({
                     'id': 'country-borders',
                     'type': 'line',
@@ -292,6 +284,7 @@
                         const countryCodeA3 = feature.properties.iso_3166_1_alpha_3;
                         const countryCodeA2 = isoA3toA2[countryCodeA3];
 
+                        // Hardcode specific names to ensure consistency
                         if (countryCodeA2 === 'XK') {
                             countryName = 'Kosovo';
                         } else if (countryCodeA3 === 'FLK') {

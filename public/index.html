@@ -355,6 +355,14 @@
                 loader.style.opacity = '0';
                 setTimeout(() => { loader.style.display = 'none'; }, 500);
             });
+
+            // Add event listeners to ensure map colors are persistent
+            map.on('resize', () => {
+                updateMapColors();
+            });
+            map.on('moveend', () => {
+                updateMapColors();
+            });
         }
         
         // --- CORE LOGIC ---
@@ -833,6 +841,14 @@
             visaViewBtn.addEventListener('click', () => { currentView = 'visa'; visaViewBtn.classList.add('active'); passportViewBtn.classList.remove('active'); updateLegends(); updateMapColors(); });
             passportViewBtn.addEventListener('click', () => { currentView = 'passport'; passportViewBtn.classList.add('active'); visaViewBtn.classList.remove('active'); updateLegends(); updateMapColors(); });
             selectedFlagsContainer.addEventListener('click', handleTrayFlagClick);
+
+            // Add listener for tab visibility changes to prevent rendering issues
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && map && mapView.style.opacity === '1') {
+                    map.resize();
+                    updateMapColors();
+                }
+            });
 
             try {
                 const response = await fetch('/api/mapbox-token');

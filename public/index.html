@@ -846,7 +846,10 @@
                     // Partial tie - use stripe pattern
                     const patternKey = createTiePattern(result.tyingPassports);
                     if (patternKey) {
-                        colorExpression.push(condition, 'transparent'); // Color is baked into the pattern
+                        // TROUBLESHOOTING: Use a bright, visible color instead of 'transparent'
+                        // to see if the pattern is the issue. If countries turn pink, the pattern
+                        // is not being applied correctly.
+                        colorExpression.push(condition, '#FF00FF'); 
                         patternExpression.push(condition, patternKey);
                     } else {
                         colorExpression.push(condition, TIE_COLOR); // Fallback

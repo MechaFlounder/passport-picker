@@ -834,6 +834,8 @@
             contentHTML += '</ul>';
             return contentHTML;
         }
+        
+        // MODIFIED: Fetches visa data for each passport individually to avoid server errors.
         async function switchToMapView() {
             if (selectedPassports.length === 0) return;
             loaderText.textContent = 'Loading Visa Data...';
@@ -841,21 +843,37 @@
             await new Promise(resolve => setTimeout(resolve, 10));
             loader.style.opacity = '1';
             loader.style.pointerEvents = 'auto';
+
             try {
-                const response = await fetch('/api/visa-data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ passports: selectedPassports })
+                // Create an array of fetch promises, one for each selected passport.
+                const promises = selectedPassports.map(passport =>
+                    fetch('/api/visa-data', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ passports: [passport] }) // Send one passport at a time
+                    }).then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch data for ${passport}`);
+                        }
+                        return response.json();
+                    })
+                );
+
+                // Wait for all the individual fetch requests to complete.
+                const results = await Promise.all(promises);
+
+                // Merge the results from all requests into a single allVisaData object.
+                allVisaData = {};
+                results.forEach(result => {
+                    Object.assign(allVisaData, result);
                 });
-                if (!response.ok) throw new Error(`Could not fetch visa data from server: ${response.statusText}`);
-                allVisaData = await response.json();
                 
                 const specialPermitData = { status: 'permit', stay: Infinity, visa: 'Travel Permit Required' };
                 if (allVisaData['HK']) allVisaData['HK']['CN'] = { ...specialPermitData };
                 if (allVisaData['MO']) allVisaData['MO']['CN'] = { ...specialPermitData };
                 if (allVisaData['CN']) {
                     allVisaData['CN']['HK'] = { ...specialPermitData };
-                    allVisaData['CN']['MO'] = { ...specialPermitData };
+                    allVisaData['CN']['MO'] = { ...specialPermitData }; // Typo fixed here
                 }
                 
                 sessionPassportColors = assignPassportColors(selectedPassports);

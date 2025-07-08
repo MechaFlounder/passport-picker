@@ -726,33 +726,36 @@
 
         function createStripePattern(passportCodes) {
             const patternKey = passportCodes.sort().join('-');
-            // If pattern already exists on map, reuse it
-            if (generatedPatterns.has(patternKey) && map.hasImage(patternKey)) {
+            // If pattern already exists on map, reuse it.
+            if (map.hasImage(patternKey)) {
                 return patternKey;
             }
 
-            const size = 32; // Canvas size for the pattern. A power of 2 is good.
+            const size = 16; // Use a smaller canvas for a finer-looking pattern that repeats more often.
             const canvas = document.createElement('canvas');
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
             
             const colors = passportCodes.map(code => sessionPassportColors[code]);
+            if (!colors.length || colors.some(c => !c)) {
+                console.error("Invalid colors for pattern generation:", passportCodes);
+                return null; // Return null to fall back to solid color
+            }
             const numColors = colors.length;
-
-            // Define the width of each individual stripe line. This makes it "finer".
-            const lineWidth = 4; 
+            const lineWidth = 2; // Make stripes finer
             ctx.lineWidth = lineWidth;
 
-            // Calculate the number of lines needed to cover the canvas diagonally
+            // Calculate how many lines are needed to cover the canvas.
+            // The diagonal is sqrt(2)*size, but we draw from -size to cover all corners, so 2*size is safe.
             const numLines = Math.ceil(size * 2 / lineWidth);
 
             for (let i = 0; i < numLines; i++) {
-                // Cycle through the passport colors for each line
+                // Cycle through the colors for each line
                 ctx.strokeStyle = colors[i % numColors];
-                
                 ctx.beginPath();
-                // We draw a set of parallel diagonal lines (y = x + c)
+                // We draw a set of parallel diagonal lines.
+                // The intercept moves along the x-axis.
                 const intercept = i * lineWidth - size;
                 ctx.moveTo(intercept, 0);
                 ctx.lineTo(intercept + size, size);
@@ -762,7 +765,8 @@
             const imageData = ctx.getImageData(0, 0, size, size);
             
             try {
-                // If style reloads, we might need to re-add the image.
+                // If the map style has been reloaded, the image might not exist anymore.
+                // This logic handles adding it or updating it if it somehow exists.
                 if (map.hasImage(patternKey)) {
                     map.updateImage(patternKey, imageData);
                 } else {
@@ -770,8 +774,8 @@
                 }
                 generatedPatterns.add(patternKey);
             } catch (e) {
-                console.error("Failed to add/update pattern image on map:", e);
-                return null; // Return null if pattern creation fails
+                console.error(`Failed to add/update pattern image '${patternKey}' on map:`, e);
+                return null; // Fallback if Mapbox throws an error
             }
             
             return patternKey;

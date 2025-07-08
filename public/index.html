@@ -479,10 +479,6 @@
             return 'na';
         }
         
-        /**
-         * [MODIFIED] Gets the best travel option(s) for a country from a list of passports.
-         * Now returns an array of all tied best passports.
-         */
         function getBestOption(countryCode, passports) {
             // Handle special cases first
             switch(countryCode) {
@@ -548,8 +544,8 @@
         }
         
         /**
-         * [NEW] Generates a striped pattern image from a list of passport codes and adds it to the map.
-         * This is used for countries where multiple passports are tied for the best travel option.
+         * [FIXED] Generates a striped pattern image from a list of passport codes and adds it to the map.
+         * This version uses a more robust method of drawing parallelograms to create the diagonal stripes.
          */
         function generateAndAddStripePattern(passportCodes) {
             const sortedCodes = [...passportCodes].sort();
@@ -561,26 +557,29 @@
             const colors = sortedCodes.map(code => sessionPassportColors[code]);
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const size = 32; // Power of 2 is good for performance
+            const size = 32; // A good size for patterns
             canvas.width = size;
             canvas.height = size;
 
-            const numStripes = colors.length;
-            // Calculate total length for diagonal drawing
-            const diagonalLength = Math.sqrt(2 * size * size);
-            ctx.save();
-            ctx.rotate(45 * Math.PI / 180);
-            
-            const stripeWidth = diagonalLength / numStripes;
+            const stripeWidth = Math.max(4, size / colors.length); // Ensure stripes aren't too thin
+            const step = stripeWidth;
 
-            for (let i = 0; i < numStripes; i++) {
-                ctx.fillStyle = colors[i];
-                ctx.fillRect(0, i * stripeWidth - diagonalLength, diagonalLength, stripeWidth);
+            // The pattern needs to cover a diagonal space, so we draw from -size to size
+            for (let i = -size; i < size; i += step) {
+                // Assign a color based on the stripe's position
+                ctx.fillStyle = colors[Math.floor(Math.abs(i / step)) % colors.length];
+                ctx.beginPath();
+                // Define the four corners of the diagonal stripe (a parallelogram)
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + step, 0);
+                ctx.lineTo(i + step + size, size);
+                ctx.lineTo(i + size, size);
+                ctx.closePath();
+                ctx.fill();
             }
-            ctx.restore();
-            
+
             const imageData = ctx.getImageData(0, 0, size, size);
-            map.addImage(patternId, imageData, { sdf: false }); // sdf: false is crucial for color patterns
+            map.addImage(patternId, imageData, { sdf: false });
             return patternId;
         }
 
@@ -632,14 +631,16 @@
                     legendGroups[color].texts.add(text);
                     legendGroups[color].statuses.add(status);
                 });
-                const sortedGroups = Object.values(legendGroups).sort((a, b) => a.priority - b.priority);
-                sortedGroups.forEach(group => {
+
+                // [FIXED] Use Object.entries to preserve the color (which is the key)
+                const sortedGroups = Object.entries(legendGroups).sort((a, b) => a[1].priority - b[1].priority);
+                sortedGroups.forEach(([color, data]) => { // Destructure to get color and data
                     const legendItem = document.createElement('div');
                     legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
-                    legendItem.style.backgroundColor = group.color;
-                    legendItem.style.color = getContrastingTextColor(group.color);
-                    legendItem.textContent = Array.from(group.texts).join(' / ');
-                    legendItem.addEventListener('click', (e) => handleLegendClick('visa', group.statuses, e.currentTarget));
+                    legendItem.style.backgroundColor = color; // Use the color from the key
+                    legendItem.style.color = getContrastingTextColor(color);
+                    legendItem.textContent = Array.from(data.texts).join(' / ');
+                    legendItem.addEventListener('click', (e) => handleLegendClick('visa', data.statuses, e.currentTarget));
                     visaStatusLegend.appendChild(legendItem);
                 });
 
@@ -692,11 +693,6 @@
             }
         }
         
-        /**
-         * [MODIFIED] Drastically updates map coloring logic for both views.
-         * Implements the new rules for Best Passport view: solid, striped, and "All Equal" states.
-         * Handles complex opacity changes based on default state and legend focus.
-         */
         function updateMapColors() {
             if (!map || !map.isStyleLoaded()) return;
 
@@ -798,8 +794,8 @@
             const nonHighlightedOpacity = 0.1;
             if (focusedLegend) {
                 map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', nonHighlightedOpacity);
-                map.setPaintProperty('country-borders', 'line-opacity', nonHighlightedOpacity);
-                map.setPaintProperty('country-borders-casing', 'line-opacity', nonHighlightedOpacity);
+                map.setPaintProperty('country-borders', 'line-opacity', 0); // Hide borders when focused for clarity
+                map.setPaintProperty('country-borders-casing', 'line-opacity', 0);
             } else {
                 map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
                 map.setPaintProperty('country-borders', 'line-opacity', 1.0);

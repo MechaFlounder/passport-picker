@@ -500,7 +500,6 @@
             return 'na';
         }
         
-        // --- MODIFIED: getBestOptions now returns all tying passports ---
         function getBestOptions(countryCode, passports) {
             const defaultResult = { status: 'na', stay: 0, tyingPassports: [], allPassportsTie: false };
             if (!passports || passports.length === 0) {
@@ -660,8 +659,12 @@
                 document.querySelectorAll('.legend-item').forEach(item => item.classList.remove('focused-legend-item'));
                 const allLegendItems = Array.from(document.querySelectorAll('.legend-item'));
                 const focusedItem = allLegendItems.find(item => {
-                     // This is a simplified check. A more robust check would use data attributes.
-                    if (focusedLegend.type === 'visa') return item.textContent === Array.from(focusedLegend.value.map(s => statusText[s])).join(' / ');
+                    if (focusedLegend.type === 'visa') {
+                        const itemStatuses = Array.from(item.textContent.split(' / ')).map(text => {
+                            return Object.keys(statusText).find(key => statusText[key] === text);
+                        });
+                        return JSON.stringify(itemStatuses.sort()) === JSON.stringify(focusedLegend.value.sort());
+                    }
                     if (focusedLegend.type === 'passport') return item.textContent === (countryCodeToNameMap[focusedLegend.value[0]] || focusedLegend.value[0]);
                     if (focusedLegend.type === 'tie') return item.textContent === TIE_LEGEND_TEXT;
                     return false;
@@ -723,28 +726,54 @@
 
         function createStripePattern(passportCodes) {
             const patternKey = passportCodes.sort().join('-');
-            if (generatedPatterns.has(patternKey)) return patternKey;
+            // If pattern already exists on map, reuse it
+            if (generatedPatterns.has(patternKey) && map.hasImage(patternKey)) {
+                return patternKey;
+            }
 
-            const size = 64;
+            const size = 32; // Canvas size for the pattern. A power of 2 is good.
             const canvas = document.createElement('canvas');
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
+            
             const colors = passportCodes.map(code => sessionPassportColors[code]);
-            const stripeWidth = size / colors.length;
-            ctx.lineWidth = stripeWidth;
+            const numColors = colors.length;
 
-            for (let i = 0; i < colors.length * 2; i++) {
+            // Define the width of each individual stripe line. This makes it "finer".
+            const lineWidth = 4; 
+            ctx.lineWidth = lineWidth;
+
+            // Calculate the number of lines needed to cover the canvas diagonally
+            const numLines = Math.ceil(size * 2 / lineWidth);
+
+            for (let i = 0; i < numLines; i++) {
+                // Cycle through the passport colors for each line
+                ctx.strokeStyle = colors[i % numColors];
+                
                 ctx.beginPath();
-                ctx.strokeStyle = colors[i % colors.length];
-                ctx.moveTo(i * stripeWidth - size, 0);
-                ctx.lineTo(i * stripeWidth, size);
+                // We draw a set of parallel diagonal lines (y = x + c)
+                const intercept = i * lineWidth - size;
+                ctx.moveTo(intercept, 0);
+                ctx.lineTo(intercept + size, size);
                 ctx.stroke();
             }
             
             const imageData = ctx.getImageData(0, 0, size, size);
-            map.addImage(patternKey, imageData, { sdf: false });
-            generatedPatterns.add(patternKey);
+            
+            try {
+                // If style reloads, we might need to re-add the image.
+                if (map.hasImage(patternKey)) {
+                    map.updateImage(patternKey, imageData);
+                } else {
+                    map.addImage(patternKey, imageData, { sdf: false });
+                }
+                generatedPatterns.add(patternKey);
+            } catch (e) {
+                console.error("Failed to add/update pattern image on map:", e);
+                return null; // Return null if pattern creation fails
+            }
+            
             return patternKey;
         }
 
@@ -783,8 +812,12 @@
                 } else if (result.tyingPassports.length > 1) {
                     // Partial tie - use pattern
                     const patternKey = createStripePattern(result.tyingPassports);
-                    patternExpression.push(condition, patternKey);
-                    colorExpression.push(condition, 'transparent'); // Use transparent color where pattern is applied
+                    if (patternKey) {
+                        patternExpression.push(condition, patternKey);
+                        colorExpression.push(condition, 'transparent'); // Use transparent where pattern is applied
+                    } else {
+                        colorExpression.push(condition, TIE_COLOR); // Fallback color
+                    }
                      if (focusedLegend?.type === 'passport') {
                         isHighlighted = result.tyingPassports.some(p => focusedLegend.value.includes(p));
                     }

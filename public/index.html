@@ -777,9 +777,8 @@
             const stripeWidth = Math.max(4, size / colors.length); // Ensure stripes aren't too thin
             const step = stripeWidth;
 
-            // FIX: Bake the transparency into the pattern image itself
-            // instead of relying on layer opacity, which can be buggy.
-            ctx.globalAlpha = 0.8;
+            // Set to 100% opacity as requested
+            ctx.globalAlpha = 1.0;
 
             // The pattern needs to cover a diagonal space, so we draw from -size to size
             for (let i = -size; i < size * 2; i += step) {
@@ -853,7 +852,6 @@
                         colorExpression.push(condition, TIE_COLOR); // Fallback
                         patternExpression.push(condition, null);
                     }
-                    // FIX: Removed line that set opacity to 0.7, as transparency is now in the pattern.
                      if (focusedLegend?.type === 'passport') {
                         isHighlighted = result.tyingPassports.some(p => focusedLegend.value.includes(p));
                     }

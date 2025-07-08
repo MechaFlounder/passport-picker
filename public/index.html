@@ -846,10 +846,8 @@
                     // Partial tie - use stripe pattern
                     const patternKey = createTiePattern(result.tyingPassports);
                     if (patternKey) {
-                        // TROUBLESHOOTING: Use a bright, visible color instead of 'transparent'
-                        // to see if the pattern is the issue. If countries turn pink, the pattern
-                        // is not being applied correctly.
-                        colorExpression.push(condition, '#FF00FF'); 
+                        // Revert diagnostic color back to transparent
+                        colorExpression.push(condition, 'transparent'); 
                         patternExpression.push(condition, patternKey);
                     } else {
                         colorExpression.push(condition, TIE_COLOR); // Fallback
@@ -874,19 +872,24 @@
             opacityExpression.push(focusedLegend ? 0.1 : 1.0);
             borderOpacityExpression.push(focusedLegend ? 0.15 : 1.0);
 
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
-            
-            if (focusedLegend) {
-                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.1);
-                map.setPaintProperty('country-borders', 'line-opacity', borderOpacityExpression);
-                map.setPaintProperty('country-borders-casing', 'line-opacity', borderOpacityExpression);
-            } else {
-                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
-                map.setPaintProperty('country-borders', 'line-opacity', 1.0);
-                map.setPaintProperty('country-borders-casing', 'line-opacity', 0.8);
-            }
+            // FIX: Use a timeout to ensure patterns are loaded before being applied.
+            // This moves the style update to the next tick of the event loop.
+            setTimeout(() => {
+                if (!map || !map.style) return; // Ensure map is still valid before updating
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
+                
+                if (focusedLegend) {
+                    map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.1);
+                    map.setPaintProperty('country-borders', 'line-opacity', borderOpacityExpression);
+                    map.setPaintProperty('country-borders-casing', 'line-opacity', borderOpacityExpression);
+                } else {
+                    map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+                    map.setPaintProperty('country-borders', 'line-opacity', 1.0);
+                    map.setPaintProperty('country-borders-casing', 'line-opacity', 0.8);
+                }
+            }, 0);
         }
         // --- STRIPE FIX END ---
 

@@ -759,6 +759,10 @@
             }
         }
 
+        // --- STRIPE FIX START ---
+        // The following two functions have been replaced with the versions from your working example
+        // to correctly handle the rendering of stripe patterns for partial ties.
+
         function createTiePattern(passportCodes) {
             const sortedCodes = [...passportCodes].sort();
             const patternId = `stripes-${sortedCodes.join('-')}`;
@@ -882,6 +886,7 @@
                 map.setPaintProperty('country-borders-casing', 'line-opacity', 0.8);
             }
         }
+        // --- STRIPE FIX END ---
 
         function generateInfoContent(countryCodeA2) {
             const passportsToConsider = activePassports;

@@ -657,6 +657,7 @@
                     legendItem.style.backgroundColor = color;
                     legendItem.style.color = getContrastingTextColor(color);
                     legendItem.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full" style="background-color: ${color};"></span>${passportName}`;
+                    legendItem.dataset.legendId = passport; // Add data attribute for robust matching
                     legendItem.addEventListener('click', (e) => handleLegendClick('passport', new Set([passport]), e.currentTarget));
                     bestPassportLegend.appendChild(legendItem);
                 });
@@ -667,6 +668,7 @@
                     legendItem.style.backgroundColor = ALL_EQUAL_COLOR;
                     legendItem.style.color = getContrastingTextColor(ALL_EQUAL_COLOR);
                     legendItem.textContent = 'All Equal';
+                    legendItem.dataset.legendId = ALL_EQUAL_LEGEND_ID; // Add data attribute
                     legendItem.addEventListener('click', (e) => handleLegendClick('passport', new Set([ALL_EQUAL_LEGEND_ID]), e.currentTarget));
                     bestPassportLegend.appendChild(legendItem);
                 }
@@ -677,14 +679,17 @@
                 const allLegendItems = document.querySelectorAll('.legend-item');
                 allLegendItems.forEach(item => {
                     if (focusedLegend.type === 'passport') {
-                        const passportCode = Array.from(focusedLegend.value)[0];
-                        const passportName = countryCodeToNameMap[passportCode] || (passportCode === ALL_EQUAL_LEGEND_ID ? 'All Equal' : passportCode);
-                        if (item.textContent === passportName) {
+                        const legendId = Array.from(focusedLegend.value)[0];
+                        if (item.dataset.legendId === legendId) {
                             item.classList.add('focused-legend-item');
                         }
                     } else { // visa
-                         const statusName = statusText[Array.from(focusedLegend.value)[0]];
-                         if(item.textContent.includes(statusName)) {
+                         const focusedStatuses = focusedLegend.value;
+                         // This part of the logic for visa legend focus remains complex, but should work
+                         const itemText = item.textContent;
+                         const statusesInItem = Object.keys(statusText).filter(key => itemText.includes(statusText[key]));
+                         const hasFocusedStatus = statusesInItem.some(s => focusedStatuses.has(s));
+                         if(hasFocusedStatus) {
                             item.classList.add('focused-legend-item');
                          }
                     }
@@ -693,102 +698,78 @@
         }
         
         /**
-         * [FIXED] This function now uses the 3-letter country code ('iso_3166_1_alpha_3')
-         * from the map data for reliable matching, which resolves all coloring issues.
+         * [FIXED] This function has been rewritten to correctly build the Mapbox case expressions.
+         * It ensures that the logic for each country is correctly applied, fixing the coloring issues.
          */
         function updateMapColors() {
-            if (!map || !map.isStyleLoaded()) return;
+            if (!map || !map.isStyleLoaded() || !sessionPassportColors) return;
 
             const passportsToConsider = activePassports;
             const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
             const allA3Codes = Object.keys(isoA3toA2);
 
-            if (currentView === 'passport' && passportsToConsider.length > 0) {
-                const colorExpression = ['case'];
-                const patternExpression = ['case'];
-                const opacityExpression = ['case'];
+            // --- Build expressions array for each property ---
+            const colorExpression = ['case'];
+            const patternExpression = ['case'];
+            const opacityExpression = ['case'];
 
-                allA3Codes.forEach(countryCodeA3 => {
-                    const countryCodeA2 = isoA3toA2[countryCodeA3];
-                    if (!countryCodeA2) return;
+            allA3Codes.forEach(countryCodeA3 => {
+                const countryCodeA2 = isoA3toA2[countryCodeA3];
+                if (!countryCodeA2) return;
 
+                const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
+                let finalColor = defaultColor;
+                let finalPattern = '';
+                let finalOpacity = 1.0;
+                let isHighlighted = false;
+
+                if (currentView === 'passport' && passportsToConsider.length > 0) {
                     const bestOption = getBestOption(countryCodeA2, passportsToConsider);
-                    const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
-                    
-                    let defaultOpacity = 1.0;
-                    let isHighlighted = false;
 
                     if (bestOption.allTied) {
-                        colorExpression.push(condition, ALL_EQUAL_COLOR);
-                        patternExpression.push(condition, '');
-                        defaultOpacity = 0.1;
+                        finalColor = ALL_EQUAL_COLOR;
+                        finalOpacity = 0.1;
                         if (focusedLegend?.value.has(ALL_EQUAL_LEGEND_ID)) isHighlighted = true;
                     } else if (bestOption.tiedPassports.length > 1) {
-                        const patternId = generateAndAddStripePattern(bestOption.tiedPassports);
-                        colorExpression.push(condition, 'rgba(0,0,0,0)');
-                        patternExpression.push(condition, patternId);
-                        defaultOpacity = 0.7;
+                        finalColor = 'rgba(0,0,0,0)'; // Use transparent color for patterns
+                        finalPattern = generateAndAddStripePattern(bestOption.tiedPassports);
+                        finalOpacity = 0.7;
                         if (focusedLegend) {
                             const focusedPassport = Array.from(focusedLegend.value)[0];
                             if (bestOption.tiedPassports.includes(focusedPassport)) isHighlighted = true;
                         }
                     } else if (bestOption.tiedPassports.length === 1) {
                         const winner = bestOption.tiedPassports[0];
-                        colorExpression.push(condition, sessionPassportColors[winner] || statusColors['na']);
-                        patternExpression.push(condition, '');
-                        defaultOpacity = 1.0;
+                        finalColor = sessionPassportColors[winner] || statusColors['na'];
+                        finalOpacity = 1.0;
                         if (focusedLegend?.value.has(winner)) isHighlighted = true;
-                    } else {
-                        colorExpression.push(condition, defaultColor);
-                        patternExpression.push(condition, '');
-                        defaultOpacity = 1.0;
                     }
-
+                    
                     if (focusedLegend) {
-                        opacityExpression.push(condition, isHighlighted ? 1.0 : 0.1);
-                    } else {
-                        opacityExpression.push(condition, defaultOpacity);
+                        finalOpacity = isHighlighted ? 1.0 : 0.1;
                     }
-                });
 
-                colorExpression.push(defaultColor);
-                patternExpression.push('');
-                opacityExpression.push(focusedLegend ? 0.1 : 1.0);
-
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
-
-            } else { // Visa Status View
-                const colorExpression = ['case'];
-                const opacityExpression = ['case'];
-
-                allA3Codes.forEach(countryCodeA3 => {
-                    const countryCodeA2 = isoA3toA2[countryCodeA3];
-                    if (!countryCodeA2) return;
-
+                } else { // Visa Status View
                     const bestOption = getBestOption(countryCodeA2, passportsToConsider);
-                    const color = statusColors[bestOption.status] || defaultColor;
-                    const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
-                    colorExpression.push(condition, color);
-
+                    finalColor = statusColors[bestOption.status] || defaultColor;
                     if (focusedLegend && focusedLegend.type === 'visa') {
-                        const isHighlighted = focusedLegend.value.has(bestOption.status);
-                        opacityExpression.push(condition, isHighlighted ? 1.0 : 0.1);
+                        finalOpacity = focusedLegend.value.has(bestOption.status) ? 1.0 : 0.1;
                     }
-                });
-                
-                colorExpression.push(defaultColor);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', '');
-                
-                if (focusedLegend && focusedLegend.type === 'visa') {
-                    opacityExpression.push(0.1);
-                    map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
-                } else {
-                    map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
                 }
-            }
+
+                colorExpression.push(condition, finalColor);
+                patternExpression.push(condition, finalPattern);
+                opacityExpression.push(condition, finalOpacity);
+            });
+
+            // --- Add fallbacks and set paint properties ---
+            colorExpression.push(defaultColor);
+            patternExpression.push('');
+            opacityExpression.push(focusedLegend ? 0.1 : 1.0);
+
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
 
             // --- Universal Opacity Rules for Borders and Disputed Areas ---
             const nonHighlightedOpacity = 0.1;

@@ -766,7 +766,7 @@
                 return patternKey;
             }
 
-            const size = 16; // Use a smaller canvas for a finer-looking pattern that repeats more often.
+            const size = 32; // A larger canvas might show clearer patterns
             const canvas = document.createElement('canvas');
             canvas.width = size;
             canvas.height = size;
@@ -778,25 +778,33 @@
                 return null; // Return null to fall back to solid color
             }
             const numColors = colors.length;
-            const lineWidth = 2; // Make stripes finer
-            ctx.lineWidth = lineWidth;
+            
+            // Define the visual width of the stripes
+            const stripeWidth = 4;
+            
+            // Save the original context state
+            ctx.save();
 
-            // Calculate how many lines are needed to cover the canvas.
-            // The diagonal is sqrt(2)*size, but we draw from -size to cover all corners, so 2*size is safe.
-            const numLines = Math.ceil(size * 2 / lineWidth);
+            // Rotate the context to draw diagonally
+            ctx.rotate(45 * Math.PI / 180);
+            
+            // We need to draw across a larger diagonal area to cover the corners after rotation.
+            // A safe area to draw over is from -size to +size on both axes.
+            const drawArea = size * 2;
 
-            for (let i = 0; i < numLines; i++) {
-                // Cycle through the colors for each line
-                ctx.strokeStyle = colors[i % numColors];
-                ctx.beginPath();
-                // We draw a set of parallel diagonal lines.
-                // The intercept moves along the x-axis.
-                const intercept = i * lineWidth - size;
-                ctx.moveTo(intercept, 0);
-                ctx.lineTo(intercept + size, size);
-                ctx.stroke();
+            // Calculate the number of stripes needed
+            const numStripes = Math.ceil(drawArea / stripeWidth);
+
+            for (let i = 0; i < numStripes; i++) {
+                ctx.fillStyle = colors[i % numColors];
+                // Draw a tall rectangle. Because of the rotation, it will appear as a diagonal stripe.
+                // We start from a negative position to cover the top-left corner after rotation.
+                ctx.fillRect(i * stripeWidth - size, -size, stripeWidth, drawArea * 2);
             }
             
+            // Restore the context to its original, non-rotated state
+            ctx.restore();
+
             const imageData = ctx.getImageData(0, 0, size, size);
             
             try {

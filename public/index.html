@@ -713,27 +713,28 @@
             const patternExpression = ['case'];
             const opacityExpression = ['case'];
 
-            allA3Codes.forEach(countryCodeA3 => {
-                const countryCodeA2 = isoA3toA2[countryCodeA3];
-                if (!countryCodeA2) return;
+            if (currentView === 'passport' && passportsToConsider.length > 0) {
+                // --- BEST PASSPORT VIEW LOGIC ---
+                allA3Codes.forEach(countryCodeA3 => {
+                    const countryCodeA2 = isoA3toA2[countryCodeA3];
+                    if (!countryCodeA2) return;
 
-                const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
-                let finalColor = defaultColor;
-                let finalPattern = '';
-                let finalOpacity = 1.0;
-                let isHighlighted = false;
-
-                if (currentView === 'passport' && passportsToConsider.length > 0) {
                     const bestOption = getBestOption(countryCodeA2, passportsToConsider);
+                    const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
+                    
+                    let finalColor = defaultColor;
+                    let finalPattern = '';
+                    let defaultOpacity = 1.0;
+                    let isHighlighted = false;
 
                     if (bestOption.allTied) {
                         finalColor = ALL_EQUAL_COLOR;
-                        finalOpacity = 0.1;
+                        defaultOpacity = 0.1;
                         if (focusedLegend?.value.has(ALL_EQUAL_LEGEND_ID)) isHighlighted = true;
                     } else if (bestOption.tiedPassports.length > 1) {
-                        finalColor = 'rgba(0,0,0,0)'; // Use transparent color for patterns
+                        finalColor = 'rgba(0,0,0,0)';
                         finalPattern = generateAndAddStripePattern(bestOption.tiedPassports);
-                        finalOpacity = 0.7;
+                        defaultOpacity = 0.7;
                         if (focusedLegend) {
                             const focusedPassport = Array.from(focusedLegend.value)[0];
                             if (bestOption.tiedPassports.includes(focusedPassport)) isHighlighted = true;
@@ -741,26 +742,36 @@
                     } else if (bestOption.tiedPassports.length === 1) {
                         const winner = bestOption.tiedPassports[0];
                         finalColor = sessionPassportColors[winner] || statusColors['na'];
-                        finalOpacity = 1.0;
+                        defaultOpacity = 1.0;
                         if (focusedLegend?.value.has(winner)) isHighlighted = true;
                     }
                     
-                    if (focusedLegend) {
-                        finalOpacity = isHighlighted ? 1.0 : 0.1;
-                    }
+                    const finalOpacity = focusedLegend ? (isHighlighted ? 1.0 : 0.1) : defaultOpacity;
 
-                } else { // Visa Status View
+                    colorExpression.push(condition, finalColor);
+                    patternExpression.push(condition, finalPattern);
+                    opacityExpression.push(condition, finalOpacity);
+                });
+            } else {
+                // --- VISA STATUS VIEW LOGIC ---
+                allA3Codes.forEach(countryCodeA3 => {
+                    const countryCodeA2 = isoA3toA2[countryCodeA3];
+                    if (!countryCodeA2) return;
+
                     const bestOption = getBestOption(countryCodeA2, passportsToConsider);
-                    finalColor = statusColors[bestOption.status] || defaultColor;
+                    const color = statusColors[bestOption.status] || defaultColor;
+                    const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
+                    
+                    let finalOpacity = 1.0;
                     if (focusedLegend && focusedLegend.type === 'visa') {
                         finalOpacity = focusedLegend.value.has(bestOption.status) ? 1.0 : 0.1;
                     }
-                }
-
-                colorExpression.push(condition, finalColor);
-                patternExpression.push(condition, finalPattern);
-                opacityExpression.push(condition, finalOpacity);
-            });
+                    
+                    colorExpression.push(condition, color);
+                    patternExpression.push(condition, ''); // No patterns in this view
+                    opacityExpression.push(condition, finalOpacity);
+                });
+            }
 
             // --- Add fallbacks and set paint properties ---
             colorExpression.push(defaultColor);

@@ -760,6 +760,37 @@
         }
 
         // --- STRIPE FIX START ---
+        
+        // Helper function to generate combinations for pre-generation
+        function getCombinations(array, size) {
+            const result = [];
+            function combination(temp, start) {
+                if (temp.length === size) {
+                    result.push([...temp]);
+                    return;
+                }
+                for (let i = start; i < array.length; i++) {
+                    temp.push(array[i]);
+                    combination(temp, i + 1);
+                    temp.pop();
+                }
+            }
+            combination([], 0);
+            return result;
+        }
+
+        // New function to pre-generate all possible tie patterns
+        function pregenerateAllPatterns() {
+            // We only need to generate patterns for ties of 2 or more passports
+            for (let size = 2; size <= selectedPassports.length; size++) {
+                const combinations = getCombinations(selectedPassports, size);
+                combinations.forEach(combo => {
+                    // This will create and add the pattern to the map if it doesn't exist
+                    createTiePattern(combo);
+                });
+            }
+        }
+
         function createTiePattern(passportCodes) {
             const sortedCodes = [...passportCodes].sort();
             const patternId = `stripes-${sortedCodes.join('-')}`;
@@ -777,8 +808,7 @@
             const stripeWidth = Math.max(4, size / colors.length); // Ensure stripes aren't too thin
             const step = stripeWidth;
 
-            // Set to 100% opacity as requested
-            ctx.globalAlpha = 1.0;
+            ctx.globalAlpha = 1.0; // Set to 100% opacity
 
             // The pattern needs to cover a diagonal space, so we draw from -size to size
             for (let i = -size; i < size * 2; i += step) {
@@ -845,12 +875,13 @@
                 } else if (result.tyingPassports.length > 1) {
                     // Partial tie - use stripe pattern
                     const patternKey = createTiePattern(result.tyingPassports);
-                    if (patternKey) {
-                        // Revert diagnostic color back to transparent
+                    // GUARD: Check if the pattern actually exists on the map before trying to use it.
+                    if (patternKey && map.hasImage(patternKey)) {
                         colorExpression.push(condition, 'transparent'); 
                         patternExpression.push(condition, patternKey);
                     } else {
-                        colorExpression.push(condition, TIE_COLOR); // Fallback
+                        // Fallback to a solid color if pattern isn't ready for any reason.
+                        colorExpression.push(condition, TIE_COLOR); 
                         patternExpression.push(condition, null);
                     }
                      if (focusedLegend?.type === 'passport') {
@@ -872,8 +903,7 @@
             opacityExpression.push(focusedLegend ? 0.1 : 1.0);
             borderOpacityExpression.push(focusedLegend ? 0.15 : 1.0);
 
-            // FIX: Use a timeout to ensure patterns are loaded before being applied.
-            // This moves the style update to the next tick of the event loop.
+            // Use a timeout to ensure patterns are loaded before being applied.
             setTimeout(() => {
                 if (!map || !map.style) return; // Ensure map is still valid before updating
                 map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
@@ -976,6 +1006,7 @@
                 }
                 
                 sessionPassportColors = assignPassportColors(selectedPassports);
+                pregenerateAllPatterns(); // Pre-generate patterns
                 resetMapFocus();
                 updateMapSelectedFlags();
                 landingPage.style.opacity = '0';

@@ -759,69 +759,86 @@
             }
         }
 
-        function createStripePattern(passportCodes) {
-            const patternKey = passportCodes.sort().join('-');
-            // If pattern already exists on map, reuse it.
+        function createTiePattern(patternPassportCodes) {
+            if (!patternPassportCodes || patternPassportCodes.length === 0) {
+                return null;
+            }
+            const patternKey = 'tie-' + patternPassportCodes.sort().join('-');
             if (map.hasImage(patternKey)) {
                 return patternKey;
             }
 
-            const size = 32; // A larger canvas might show clearer patterns
+            const size = 20; // A good size for repeating patterns
             const canvas = document.createElement('canvas');
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
-            
-            const colors = passportCodes.map(code => sessionPassportColors[code]);
-            if (!colors.length || colors.some(c => !c)) {
-                console.error("Invalid colors for pattern generation:", passportCodes);
-                return null; // Return null to fall back to solid color
+
+            const patternColors = patternPassportCodes.map(code => sessionPassportColors[code]);
+            const lineWidth = 2;
+            const spacing = 6;
+
+            // Draw diagonal lines (\\) for the first pattern color
+            if (patternColors[0]) {
+                ctx.strokeStyle = patternColors[0];
+                ctx.lineWidth = lineWidth;
+                for (let i = -size; i < size; i += spacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i + size, size);
+                    ctx.stroke();
+                }
             }
-            const numColors = colors.length;
-            
-            // Define the visual width of the stripes
-            const stripeWidth = 4;
-            
-            // Save the original context state
-            ctx.save();
 
-            // Rotate the context to draw diagonally
-            ctx.rotate(45 * Math.PI / 180);
-            
-            // We need to draw across a larger diagonal area to cover the corners after rotation.
-            // A safe area to draw over is from -size to +size on both axes.
-            const drawArea = size * 2;
-
-            // Calculate the number of stripes needed
-            const numStripes = Math.ceil(drawArea / stripeWidth);
-
-            for (let i = 0; i < numStripes; i++) {
-                ctx.fillStyle = colors[i % numColors];
-                // Draw a tall rectangle. Because of the rotation, it will appear as a diagonal stripe.
-                // We start from a negative position to cover the top-left corner after rotation.
-                ctx.fillRect(i * stripeWidth - size, -size, stripeWidth, drawArea * 2);
+            // Draw reverse diagonal lines (//) for the second pattern color
+            if (patternColors[1]) {
+                ctx.strokeStyle = patternColors[1];
+                ctx.lineWidth = lineWidth;
+                for (let i = 0; i < size * 2; i += spacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i - size, size);
+                    ctx.stroke();
+                }
             }
             
-            // Restore the context to its original, non-rotated state
-            ctx.restore();
+            // Draw horizontal lines for the third pattern color
+            if (patternColors[2]) {
+                ctx.strokeStyle = patternColors[2];
+                ctx.lineWidth = lineWidth;
+                for (let i = 0; i < size; i += spacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, i);
+                    ctx.lineTo(size, i);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw vertical lines for the fourth pattern color
+            if (patternColors[3]) {
+                ctx.strokeStyle = patternColors[3];
+                ctx.lineWidth = lineWidth;
+                for (let i = 0; i < size; i += spacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i, size);
+                    ctx.stroke();
+                }
+            }
 
             const imageData = ctx.getImageData(0, 0, size, size);
-            
             try {
-                // If the map style has been reloaded, the image might not exist anymore.
-                // This logic handles adding it or updating it if it somehow exists.
                 if (map.hasImage(patternKey)) {
                     map.updateImage(patternKey, imageData);
                 } else {
                     map.addImage(patternKey, imageData, { sdf: false });
                 }
                 generatedPatterns.add(patternKey);
+                return patternKey;
             } catch (e) {
                 console.error(`Failed to add/update pattern image '${patternKey}' on map:`, e);
-                return null; // Fallback if Mapbox throws an error
+                return null;
             }
-            
-            return patternKey;
         }
 
         function updateBestPassportMapColors() {
@@ -841,31 +858,32 @@
             countryResults.forEach((result, countryCode) => {
                 const condition = ['==', ['get', 'iso_3166_1'], countryCode];
                 let isHighlighted = false;
-                let defaultOpacity = 0.7; // Default for ties
+                let defaultOpacity = 1.0; 
 
                 if (result.tyingPassports.length === 1 && result.tyingPassports[0]) {
                     // Clear winner
                     colorExpression.push(condition, sessionPassportColors[result.tyingPassports[0]]);
-                    defaultOpacity = 1.0;
+                    patternExpression.push(condition, null); // No pattern for winners
                     if (focusedLegend?.type === 'passport') {
                         isHighlighted = focusedLegend.value.includes(result.tyingPassports[0]);
                     }
                 } else if (result.allPassportsTie) {
                     // All passports tie
                     colorExpression.push(condition, TIE_COLOR);
-                    defaultOpacity = 1.0; // Set opacity to 100% for "all equal"
+                    patternExpression.push(condition, null); // No pattern for "all equal"
                     if (focusedLegend?.type === 'tie') {
                         isHighlighted = true;
                     }
                 } else if (result.tyingPassports.length > 1) {
-                    // Partial tie - use pattern
-                    const patternKey = createStripePattern(result.tyingPassports);
-                    if (patternKey) {
-                        patternExpression.push(condition, patternKey);
-                        colorExpression.push(condition, 'transparent'); // Use transparent where pattern is applied
-                    } else {
-                        colorExpression.push(condition, TIE_COLOR); // Fallback color
-                    }
+                    // Partial tie - use base color + pattern
+                    const baseColor = sessionPassportColors[result.tyingPassports[0]];
+                    const patternCodes = result.tyingPassports.slice(1);
+                    const patternKey = createTiePattern(patternCodes);
+                    
+                    colorExpression.push(condition, baseColor);
+                    patternExpression.push(condition, patternKey);
+                    defaultOpacity = 0.7;
+
                      if (focusedLegend?.type === 'passport') {
                         isHighlighted = result.tyingPassports.some(p => focusedLegend.value.includes(p));
                     }

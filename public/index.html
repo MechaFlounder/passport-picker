@@ -698,8 +698,8 @@
         }
         
         /**
-         * [FIXED] This function has been rewritten to correctly build the Mapbox case expressions.
-         * It ensures that the logic for each country is correctly applied, fixing the coloring issues.
+         * [REWRITTEN] This function has been completely rewritten with separate logic paths
+         * for each view to ensure styles do not conflict. This fixes all known coloring and border issues.
          */
         function updateMapColors() {
             if (!map || !map.isStyleLoaded() || !sessionPassportColors) return;
@@ -714,27 +714,46 @@
             const borderOpacityExpression = ['case'];
             const casingOpacityExpression = ['case'];
 
-            allA3Codes.forEach(countryCodeA3 => {
-                const countryCodeA2 = isoA3toA2[countryCodeA3];
-                if (!countryCodeA2) return;
+            if (currentView === 'visa') {
+                // --- VISA STATUS VIEW LOGIC ---
+                allA3Codes.forEach(countryCodeA3 => {
+                    const countryCodeA2 = isoA3toA2[countryCodeA3];
+                    if (!countryCodeA2) return;
 
-                const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
-                const bestOption = getBestOption(countryCodeA2, passportsToConsider);
-                
-                let finalColor = defaultColor;
-                let finalPattern = '';
-                let finalOpacity = 1.0;
-                let isHighlighted = false;
-
-                if (currentView === 'visa') {
-                    finalColor = statusColors[bestOption.status] || defaultColor;
+                    const bestOption = getBestOption(countryCodeA2, passportsToConsider);
+                    const color = statusColors[bestOption.status] || defaultColor;
+                    const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
+                    
+                    let isHighlighted = false;
                     if (focusedLegend && focusedLegend.type === 'visa') {
                         isHighlighted = focusedLegend.value.has(bestOption.status);
                     }
-                    finalOpacity = focusedLegend ? (isHighlighted ? 1.0 : 0.1) : 1.0;
-                } else { // 'passport' view
-                    let defaultOpacity = 1.0;
-                    if (passportsToConsider.length > 0) {
+                    
+                    colorExpression.push(condition, color);
+                    opacityExpression.push(condition, focusedLegend ? (isHighlighted ? 1.0 : 0.1) : 1.0);
+                    if (focusedLegend) {
+                        borderOpacityExpression.push(condition, isHighlighted ? 1.0 : 0);
+                        casingOpacityExpression.push(condition, isHighlighted ? 0.8 : 0);
+                    }
+                });
+
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', null); // Clear pattern for this view
+
+            } else {
+                // --- BEST PASSPORT VIEW LOGIC ---
+                if (passportsToConsider.length > 0) {
+                    allA3Codes.forEach(countryCodeA3 => {
+                        const countryCodeA2 = isoA3toA2[countryCodeA3];
+                        if (!countryCodeA2) return;
+
+                        const bestOption = getBestOption(countryCodeA2, passportsToConsider);
+                        const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
+                        
+                        let finalColor = defaultColor;
+                        let finalPattern = '';
+                        let defaultOpacity = 1.0;
+                        let isHighlighted = false;
+
                         if (bestOption.allTied) {
                             finalColor = ALL_EQUAL_COLOR;
                             defaultOpacity = 0.1;
@@ -753,28 +772,28 @@
                             defaultOpacity = 1.0;
                             if (focusedLegend?.value.has(winner)) isHighlighted = true;
                         }
-                    }
-                    finalOpacity = focusedLegend ? (isHighlighted ? 1.0 : 0.1) : defaultOpacity;
-                }
+                        
+                        const finalOpacity = focusedLegend ? (isHighlighted ? 1.0 : 0.1) : defaultOpacity;
 
-                colorExpression.push(condition, finalColor);
-                patternExpression.push(condition, finalPattern);
-                opacityExpression.push(condition, finalOpacity);
-                
-                if (focusedLegend) {
-                    borderOpacityExpression.push(condition, isHighlighted ? 1.0 : 0);
-                    casingOpacityExpression.push(condition, isHighlighted ? 0.8 : 0);
+                        colorExpression.push(condition, finalColor);
+                        patternExpression.push(condition, finalPattern);
+                        opacityExpression.push(condition, finalOpacity);
+                        if (focusedLegend) {
+                            borderOpacityExpression.push(condition, isHighlighted ? 1.0 : 0);
+                            casingOpacityExpression.push(condition, isHighlighted ? 0.8 : 0);
+                        }
+                    });
                 }
-            });
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
+            }
 
-            // Add fallbacks
+            // Add fallbacks for all expressions
             colorExpression.push(defaultColor);
             patternExpression.push('');
             opacityExpression.push(focusedLegend ? 0.1 : 1.0);
             
             // Set paint properties for fills
             map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
             map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
             map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', focusedLegend ? 0.1 : 1.0);
 

@@ -236,7 +236,7 @@
         const statusPriority = { "citizen": 0, "fom": 1, "permit": 2, "vf": 3, "esta": 4, "eta": 4, "ev": 4, "voa": 5, "vr": 6, "denied": 7, "na": 8 };
         const statusText = { "citizen": "Citizen", "fom": "Freedom of Movement", "permit": "Travel Permit Required", "vf": "Visa Not Required", "voa": "Visa on Arrival", "esta": "ESTA", "eta": "eTA", "ev": "e-Visa / Online", "vr": "Visa Required", "denied": "Not Admitted", "na": "No Data" };
         const statusColors = { "citizen": "#8E44AD", "fom": "#81C784", "permit": "#3498DB", "vf": "#4CAF50", "voa": "#FFC107", "esta": "#2196F3", "eta": "#2196F3", "ev": "#2196F3", "vr": "#F44336", "denied": "#5D4037", "na": "#BDBDBD", "no-passport": "#E0E0E0" };
-        const TIE_COLOR = '#888888'; // New color for "All Equal" case
+        const TIE_COLOR = '#A52A2A'; // New color for "All Equal" case (Brown)
         const TIE_LEGEND_TEXT = 'All Equal';
         const countryColorPalette = {'US': { primary: '#0A3161', secondary: '#B31942' }, 'GB': { primary: '#CF142B', secondary: '#00247D' },'CA': { primary: '#FF0000', secondary: '#FFFFFF' }, 'AU': { primary: '#00008B', secondary: '#FFCD00' },'NZ': { primary: '#00247D', secondary: '#CF142B' }, 'DE': { primary: '#000000', secondary: '#FFCE00' },'FR': { primary: '#0055A4', secondary: '#EF4135' }, 'IT': { primary: '#009246', secondary: '#CE2B37' },'ES': { primary: '#C60B1E', secondary: '#FFC400' }, 'JP': { primary: '#BC002D', secondary: '#FFFFFF' },'CN': { primary: '#EE1C25', secondary: '#FFFF00' }, 'IN': { primary: '#FF9933', secondary: '#138808' },'BR': { primary: '#009B3A', secondary: '#FFDF00' }, 'RU': { primary: '#D52B1E', secondary: '#0039A6' },'ZA': { primary: '#007A4D', secondary: '#FFB612' }, 'IE': { primary: '#169B62', secondary: '#FF883E' },'CH': { primary: '#FF0000', secondary: '#FFFFFF' }, 'SE': { primary: '#006AA7', secondary: '#FFCD00' },'NO': { primary: '#EF2B2D', secondary: '#002868' }, 'KR': { primary: '#CD2E3A', secondary: '#0047A0' }};
         const countryAliases = {"US": ["usa", "america", "united states"],"GB": ["uk", "great britain", "england", "scotland", "wales", "britain"],"AE": ["uae"],"KR": ["south korea", "republic of korea"],"KP": ["north korea"],"RU": ["russia"],"CZ": ["czechia"],"CD": ["drc", "congo dem. rep."],"CG": ["congo"],"BS": ["the bahamas"],"DO": ["dr", "dominican rep."],"CF": ["car", "central african rep."],"ZA": ["sa"],"NZ": ["new zeland"]};
@@ -562,115 +562,150 @@
         function handleLegendClick(type, value, clickedElement) {
             const newFocus = { type, value };
             // If the clicked item is already focused, unfocus it.
-            if (focusedLegend && focusedLegend.type === newFocus.type && JSON.stringify(focusedLegend.value) === JSON.stringify(newFocus.value)) {
+            if (focusedLegend && focusedLegend.type === newFocus.type && JSON.stringify(focusedLegend.value.sort()) === JSON.stringify(newFocus.value.sort())) {
                 focusedLegend = null;
             } else {
                 focusedLegend = newFocus;
             }
             
-            document.querySelectorAll('.legend-item').forEach(item => item.classList.remove('focused-legend-item'));
-            
-            if (focusedLegend) {
-                clickedElement.classList.add('focused-legend-item');
-            }
+            // Update map colors and legend focus styling
             updateMapColors();
+            applyLegendFocus();
         }
 
-        function updateLegends() {
+        // --- NEW: Separated function to apply focus styling ---
+        function applyLegendFocus() {
+            document.querySelectorAll('.legend-item').forEach(item => item.classList.remove('focused-legend-item'));
+            if (!focusedLegend) return;
+
+            const allLegendItems = Array.from(document.querySelectorAll('.legend-item'));
+            const focusedItem = allLegendItems.find(item => {
+                if (item.dataset.legendType !== focusedLegend.type) return false;
+                
+                // Compare sorted JSON strings for robust matching
+                const itemValue = JSON.parse(item.dataset.legendValue);
+                const focusedValue = focusedLegend.value;
+                
+                return JSON.stringify(itemValue.sort()) === JSON.stringify(focusedValue.sort());
+            });
+            
+            if (focusedItem) {
+                focusedItem.classList.add('focused-legend-item');
+            }
+        }
+
+        // --- NEW: Separated function for Visa Status Legend ---
+        function updateVisaStatusLegend() {
             visaStatusLegend.innerHTML = '';
-            bestPassportLegend.innerHTML = '';
+            visaStatusLegend.style.display = 'flex';
+            bestPassportLegend.style.display = 'none';
             const passportsToConsider = activePassports;
 
-            if (currentView === 'visa') {
-                visaStatusLegend.style.display = 'flex';
-                bestPassportLegend.style.display = 'none';
-                const applicableStatuses = new Set();
-                if (passportsToConsider.length > 0) {
-                    Object.values(isoA3toA2).forEach(countryCodeA2 => {
-                        if (countryCodeA2) {
-                            const bestOption = getBestOptions(countryCodeA2, passportsToConsider);
-                            applicableStatuses.add(bestOption.status);
-                        }
-                    });
-                }
-                const legendGroups = {};
-                applicableStatuses.forEach(status => {
-                    const color = statusColors[status];
-                    const text = statusText[status];
-                    const priority = statusPriority[status];
-                    if (!color || !text || status === 'no-passport') return;
-                    if (!legendGroups[color]) {
-                        legendGroups[color] = { texts: new Set(), statuses: new Set(), priority: priority };
+            const applicableStatuses = new Set();
+            if (passportsToConsider.length > 0) {
+                Object.values(isoA3toA2).forEach(countryCodeA2 => {
+                    if (countryCodeA2) {
+                        const bestOption = getBestOptions(countryCodeA2, passportsToConsider);
+                        applicableStatuses.add(bestOption.status);
                     }
-                    legendGroups[color].texts.add(text);
-                    legendGroups[color].statuses.add(status);
                 });
-                const sortedGroups = Object.values(legendGroups).sort((a, b) => a.priority - b.priority);
-                sortedGroups.forEach(group => {
-                    const legendItem = document.createElement('div');
-                    legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
-                    legendItem.style.backgroundColor = group.color;
-                    legendItem.style.color = getContrastingTextColor(group.color);
-                    legendItem.textContent = Array.from(group.texts).join(' / ');
-                    legendItem.addEventListener('click', (e) => handleLegendClick('visa', Array.from(group.statuses), e.currentTarget));
-                    visaStatusLegend.appendChild(legendItem);
-                });
-            } else { // Best Passport View
-                visaStatusLegend.style.display = 'none';
-                bestPassportLegend.style.display = 'flex';
+            }
+
+            const legendGroups = {};
+            applicableStatuses.forEach(status => {
+                const color = statusColors[status];
+                const text = statusText[status];
+                const priority = statusPriority[status];
+                if (!color || !text || status === 'no-passport') return;
+                if (!legendGroups[color]) {
+                    legendGroups[color] = { texts: new Set(), statuses: new Set(), priority: priority };
+                }
+                legendGroups[color].texts.add(text);
+                legendGroups[color].statuses.add(status);
+            });
+            
+            // CORRECTED: Use Object.entries to preserve color key when mapping and sorting.
+            const sortedGroups = Object.entries(legendGroups).map(([color, data]) => ({
+                color,
+                texts: Array.from(data.texts),
+                statuses: Array.from(data.statuses),
+                priority: data.priority
+            })).sort((a, b) => a.priority - b.priority);
+
+            sortedGroups.forEach(group => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                legendItem.style.backgroundColor = group.color; // This now works correctly.
+                legendItem.style.color = getContrastingTextColor(group.color);
+                legendItem.textContent = group.texts.join(' / ');
                 
-                let isAllEqualCasePresent = false;
-                 if (passportsToConsider.length > 1) {
-                    for (const countryCodeA2 of Object.values(isoA3toA2)) {
-                        if (countryCodeA2) {
-                            const bestOption = getBestOptions(countryCodeA2, passportsToConsider);
-                            if (bestOption.allPassportsTie) {
-                                isAllEqualCasePresent = true;
-                                break;
-                            }
+                legendItem.dataset.legendType = 'visa';
+                legendItem.dataset.legendValue = JSON.stringify(group.statuses.sort());
+
+                legendItem.addEventListener('click', (e) => handleLegendClick('visa', group.statuses, e.currentTarget));
+                visaStatusLegend.appendChild(legendItem);
+            });
+        }
+
+        // --- NEW: Separated function for Best Passport Legend ---
+        function updateBestPassportLegend() {
+            bestPassportLegend.innerHTML = '';
+            visaStatusLegend.style.display = 'none';
+            bestPassportLegend.style.display = 'flex';
+            const passportsToConsider = activePassports;
+
+            let isAllEqualCasePresent = false;
+            if (passportsToConsider.length > 1) {
+                for (const countryCodeA2 of Object.values(isoA3toA2)) {
+                    if (countryCodeA2) {
+                        const bestOption = getBestOptions(countryCodeA2, passportsToConsider);
+                        if (bestOption.allPassportsTie) {
+                            isAllEqualCasePresent = true;
+                            break;
                         }
                     }
                 }
-
-                passportsToConsider.forEach((passport) => {
-                    const color = sessionPassportColors[passport];
-                    const passportName = countryCodeToNameMap[passport] || passport;
-                    const legendItem = document.createElement('div');
-                    legendItem.className = 'legend-item flex items-center text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
-                    legendItem.style.backgroundColor = color;
-                    legendItem.style.color = getContrastingTextColor(color);
-                    legendItem.textContent = passportName;
-                    legendItem.addEventListener('click', (e) => handleLegendClick('passport', [passport], e.currentTarget));
-                    bestPassportLegend.appendChild(legendItem);
-                });
-
-                if (isAllEqualCasePresent) {
-                    const legendItem = document.createElement('div');
-                    legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
-                    legendItem.style.backgroundColor = TIE_COLOR;
-                    legendItem.style.color = getContrastingTextColor(TIE_COLOR);
-                    legendItem.textContent = TIE_LEGEND_TEXT;
-                    legendItem.addEventListener('click', (e) => handleLegendClick('tie', [], e.currentTarget));
-                    bestPassportLegend.appendChild(legendItem);
-                }
             }
 
-            if(focusedLegend) {
-                document.querySelectorAll('.legend-item').forEach(item => item.classList.remove('focused-legend-item'));
-                const allLegendItems = Array.from(document.querySelectorAll('.legend-item'));
-                const focusedItem = allLegendItems.find(item => {
-                    if (focusedLegend.type === 'visa') {
-                        const itemStatuses = Array.from(item.textContent.split(' / ')).map(text => {
-                            return Object.keys(statusText).find(key => statusText[key] === text);
-                        });
-                        return JSON.stringify(itemStatuses.sort()) === JSON.stringify(focusedLegend.value.sort());
-                    }
-                    if (focusedLegend.type === 'passport') return item.textContent === (countryCodeToNameMap[focusedLegend.value[0]] || focusedLegend.value[0]);
-                    if (focusedLegend.type === 'tie') return item.textContent === TIE_LEGEND_TEXT;
-                    return false;
-                });
-                if (focusedItem) focusedItem.classList.add('focused-legend-item');
+            passportsToConsider.forEach((passport) => {
+                const color = sessionPassportColors[passport];
+                const passportName = countryCodeToNameMap[passport] || passport;
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item flex items-center text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                legendItem.style.backgroundColor = color;
+                legendItem.style.color = getContrastingTextColor(color);
+                legendItem.textContent = passportName;
+                
+                legendItem.dataset.legendType = 'passport';
+                legendItem.dataset.legendValue = JSON.stringify([passport]);
+
+                legendItem.addEventListener('click', (e) => handleLegendClick('passport', [passport], e.currentTarget));
+                bestPassportLegend.appendChild(legendItem);
+            });
+
+            if (isAllEqualCasePresent) {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                legendItem.style.backgroundColor = TIE_COLOR;
+                legendItem.style.color = getContrastingTextColor(TIE_COLOR);
+                legendItem.textContent = TIE_LEGEND_TEXT;
+                
+                legendItem.dataset.legendType = 'tie';
+                legendItem.dataset.legendValue = JSON.stringify([]);
+
+                legendItem.addEventListener('click', (e) => handleLegendClick('tie', [], e.currentTarget));
+                bestPassportLegend.appendChild(legendItem);
             }
+        }
+
+        // --- MODIFIED: Main legend function is now a dispatcher ---
+        function updateLegends() {
+            if (currentView === 'visa') {
+                updateVisaStatusLegend();
+            } else {
+                updateBestPassportLegend();
+            }
+            applyLegendFocus();
         }
         
         function updateMapColors() {
@@ -731,7 +766,7 @@
                 return patternKey;
             }
 
-            const size = 4; // Use a smaller canvas for a finer-looking pattern that repeats more often.
+            const size = 16; // Use a smaller canvas for a finer-looking pattern that repeats more often.
             const canvas = document.createElement('canvas');
             canvas.width = size;
             canvas.height = size;

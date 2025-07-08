@@ -759,90 +759,48 @@
             }
         }
 
-        function createCompositeTiePattern(passportCodes) {
-            if (!passportCodes || passportCodes.length < 2) {
-                return null;
-            }
-            const patternKey = 'composite-' + passportCodes.sort().join('-');
-            if (map.hasImage(patternKey)) {
-                return patternKey;
+        function createTiePattern(passportCodes) {
+            const sortedCodes = [...passportCodes].sort();
+            const patternId = `stripes-${sortedCodes.join('-')}`;
+            if (map.hasImage(patternId)) {
+                return patternId;
             }
 
-            const size = 20;
+            const colors = sortedCodes.map(code => sessionPassportColors[code]);
             const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const size = 32; // A good size for patterns
             canvas.width = size;
             canvas.height = size;
-            const ctx = canvas.getContext('2d');
 
-            // Base color fill
-            const baseColor = sessionPassportColors[passportCodes[0]];
-            ctx.fillStyle = baseColor;
-            ctx.fillRect(0, 0, size, size);
+            const stripeWidth = Math.max(4, size / colors.length); // Ensure stripes aren't too thin
+            const step = stripeWidth;
 
-            // Hatching patterns
-            const hatchColors = passportCodes.slice(1).map(code => sessionPassportColors[code]);
-            const lineWidth = 2;
-            const spacing = 6;
-
-            // Draw diagonal lines (\\) for the second passport
-            if (hatchColors[0]) {
-                ctx.strokeStyle = hatchColors[0];
-                ctx.lineWidth = lineWidth;
-                for (let i = -size; i < size; i += spacing) {
-                    ctx.beginPath();
-                    ctx.moveTo(i, 0);
-                    ctx.lineTo(i + size, size);
-                    ctx.stroke();
-                }
-            }
-
-            // Draw reverse diagonal lines (//) for the third passport
-            if (hatchColors[1]) {
-                ctx.strokeStyle = hatchColors[1];
-                ctx.lineWidth = lineWidth;
-                for (let i = 0; i < size * 2; i += spacing) {
-                    ctx.beginPath();
-                    ctx.moveTo(i, 0);
-                    ctx.lineTo(i - size, size);
-                    ctx.stroke();
-                }
-            }
-            
-            // Draw horizontal lines for the fourth passport
-            if (hatchColors[2]) {
-                ctx.strokeStyle = hatchColors[2];
-                ctx.lineWidth = lineWidth;
-                for (let i = 0; i < size; i += spacing) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, i);
-                    ctx.lineTo(size, i);
-                    ctx.stroke();
-                }
-            }
-
-            // Draw vertical lines for the fifth passport
-            if (hatchColors[3]) {
-                ctx.strokeStyle = hatchColors[3];
-                ctx.lineWidth = lineWidth;
-                for (let i = 0; i < size; i += spacing) {
-                    ctx.beginPath();
-                    ctx.moveTo(i, 0);
-                    ctx.lineTo(i, size);
-                    ctx.stroke();
-                }
+            // The pattern needs to cover a diagonal space, so we draw from -size to size
+            for (let i = -size; i < size * 2; i += step) {
+                // Assign a color based on the stripe's position
+                ctx.fillStyle = colors[Math.floor(Math.abs(i / step)) % colors.length];
+                ctx.beginPath();
+                // Define the four corners of the diagonal stripe (a parallelogram)
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + step, 0);
+                ctx.lineTo(i - size + step, size);
+                ctx.lineTo(i - size, size);
+                ctx.closePath();
+                ctx.fill();
             }
 
             const imageData = ctx.getImageData(0, 0, size, size);
             try {
-                if (map.hasImage(patternKey)) {
-                    map.updateImage(patternKey, imageData);
+                if (map.hasImage(patternId)) {
+                    map.updateImage(patternId, imageData);
                 } else {
-                    map.addImage(patternKey, imageData, { sdf: false });
+                    map.addImage(patternId, imageData, { sdf: false });
                 }
-                generatedPatterns.add(patternKey);
-                return patternKey;
+                generatedPatterns.add(patternId);
+                return patternId;
             } catch (e) {
-                console.error(`Failed to add/update pattern image '${patternKey}' on map:`, e);
+                console.error(`Failed to add/update pattern image '${patternId}' on map:`, e);
                 return null;
             }
         }
@@ -881,8 +839,8 @@
                         isHighlighted = true;
                     }
                 } else if (result.tyingPassports.length > 1) {
-                    // Partial tie - use composite pattern
-                    const patternKey = createCompositeTiePattern(result.tyingPassports);
+                    // Partial tie - use stripe pattern
+                    const patternKey = createTiePattern(result.tyingPassports);
                     if (patternKey) {
                         colorExpression.push(condition, 'transparent'); // Color is baked into the pattern
                         patternExpression.push(condition, patternKey);

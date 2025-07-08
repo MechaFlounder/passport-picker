@@ -331,6 +331,22 @@
                         'line-width': 0.75
                     }
                 });
+
+                // --- TROUBLESHOOTING: Add a static test pattern on map load ---
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 8;
+                canvas.height = 8;
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, 8, 8);
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, 4, 4);
+                ctx.fillRect(4, 4, 4, 4);
+                const imageData = ctx.getImageData(0, 0, 8, 8);
+                map.addImage('test-pattern', imageData, { sdf: false });
+                // --- END TROUBLESHOOTING ---
+
+
                 // --- Map Interactions ---
                 const interactiveLayerIds = [MAP_LAYER_ID, DISPUTED_LAYER_ID];
                 const kashmirNames = ['Jammu and Kashmir', 'Azad Kashmir', 'Gilgit-Baltistan', 'Aksai Chin', 'Ladakh'];
@@ -873,20 +889,12 @@
                         isHighlighted = true;
                     }
                 } else if (result.tyingPassports.length > 1) {
-                    // Partial tie - use stripe pattern
-                    const sortedCodes = [...result.tyingPassports].sort();
-                    const patternKey = `stripes-${sortedCodes.join('-')}`;
-                    
-                    // GUARD: Check if the pre-generated pattern exists.
-                    if (map.hasImage(patternKey)) {
-                        colorExpression.push(condition, 'transparent'); 
-                        patternExpression.push(condition, patternKey);
-                    } else {
-                        // Fallback to a solid color if pattern isn't ready for any reason.
-                        console.warn(`Pattern '${patternKey}' was not pre-generated. Falling back to solid color.`);
-                        colorExpression.push(condition, TIE_COLOR); 
-                        patternExpression.push(condition, null);
-                    }
+                    // --- TROUBLESHOOTING STEP ---
+                    // For any partial tie, use the static 'test-pattern' to see if it renders.
+                    colorExpression.push(condition, 'transparent'); 
+                    patternExpression.push(condition, 'test-pattern');
+                    // --- END TROUBLESHOOTING STEP ---
+
                      if (focusedLegend?.type === 'passport') {
                         isHighlighted = result.tyingPassports.some(p => focusedLegend.value.includes(p));
                     }

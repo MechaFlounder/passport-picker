@@ -543,10 +543,6 @@
             };
         }
         
-        /**
-         * [FIXED] Generates a striped pattern image from a list of passport codes and adds it to the map.
-         * This version uses a more robust method of drawing parallelograms to create the diagonal stripes.
-         */
         function generateAndAddStripePattern(passportCodes) {
             const sortedCodes = [...passportCodes].sort();
             const patternId = `stripes-${sortedCodes.join('-')}`;
@@ -598,10 +594,6 @@
             updateMapColors();
         }
         
-        /**
-         * [MODIFIED] Updates the legends for both Visa Status and Best Passport views.
-         * Adds the "All Equal" item to the Best Passport legend when applicable.
-         */
         function updateLegends() {
             visaStatusLegend.innerHTML = '';
             bestPassportLegend.innerHTML = '';
@@ -632,12 +624,11 @@
                     legendGroups[color].statuses.add(status);
                 });
 
-                // [FIXED] Use Object.entries to preserve the color (which is the key)
                 const sortedGroups = Object.entries(legendGroups).sort((a, b) => a[1].priority - b[1].priority);
-                sortedGroups.forEach(([color, data]) => { // Destructure to get color and data
+                sortedGroups.forEach(([color, data]) => {
                     const legendItem = document.createElement('div');
                     legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
-                    legendItem.style.backgroundColor = color; // Use the color from the key
+                    legendItem.style.backgroundColor = color;
                     legendItem.style.color = getContrastingTextColor(color);
                     legendItem.textContent = Array.from(data.texts).join(' / ');
                     legendItem.addEventListener('click', (e) => handleLegendClick('visa', data.statuses, e.currentTarget));
@@ -685,68 +676,74 @@
                 // Re-apply focus styles after legend rebuild
                 const allLegendItems = document.querySelectorAll('.legend-item');
                 allLegendItems.forEach(item => {
-                    // This is a simplified check. A more robust check might involve data attributes.
-                    if(item.textContent.includes(focusedLegend.type === 'passport' ? (countryCodeToNameMap[Array.from(focusedLegend.value)[0]] || 'All Equal') : statusText[Array.from(focusedLegend.value)[0]])) {
-                        item.classList.add('focused-legend-item');
+                    if (focusedLegend.type === 'passport') {
+                        const passportCode = Array.from(focusedLegend.value)[0];
+                        const passportName = countryCodeToNameMap[passportCode] || (passportCode === ALL_EQUAL_LEGEND_ID ? 'All Equal' : passportCode);
+                        if (item.textContent === passportName) {
+                            item.classList.add('focused-legend-item');
+                        }
+                    } else { // visa
+                         const statusName = statusText[Array.from(focusedLegend.value)[0]];
+                         if(item.textContent.includes(statusName)) {
+                            item.classList.add('focused-legend-item');
+                         }
                     }
                 });
             }
         }
         
+        /**
+         * [FIXED] This function now uses the 3-letter country code ('iso_3166_1_alpha_3')
+         * from the map data for reliable matching, which resolves all coloring issues.
+         */
         function updateMapColors() {
             if (!map || !map.isStyleLoaded()) return;
 
             const passportsToConsider = activePassports;
             const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
-            const allMapCodesA2 = Object.values(isoA3toA2).filter(c => c);
+            const allA3Codes = Object.keys(isoA3toA2);
 
-            // --- Best Passport View Logic ---
             if (currentView === 'passport' && passportsToConsider.length > 0) {
                 const colorExpression = ['case'];
                 const patternExpression = ['case'];
                 const opacityExpression = ['case'];
 
-                allMapCodesA2.forEach(countryCodeA2 => {
+                allA3Codes.forEach(countryCodeA3 => {
+                    const countryCodeA2 = isoA3toA2[countryCodeA3];
+                    if (!countryCodeA2) return;
+
                     const bestOption = getBestOption(countryCodeA2, passportsToConsider);
-                    const condition = ['==', ['get', 'iso_3166_1'], countryCodeA2];
+                    const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
                     
                     let defaultOpacity = 1.0;
                     let isHighlighted = false;
 
                     if (bestOption.allTied) {
-                        // Case: All selected passports are equally the best.
                         colorExpression.push(condition, ALL_EQUAL_COLOR);
                         patternExpression.push(condition, '');
                         defaultOpacity = 0.1;
                         if (focusedLegend?.value.has(ALL_EQUAL_LEGEND_ID)) isHighlighted = true;
-
                     } else if (bestOption.tiedPassports.length > 1) {
-                        // Case: A subset of passports are tied for best. Use stripes.
                         const patternId = generateAndAddStripePattern(bestOption.tiedPassports);
-                        colorExpression.push(condition, 'rgba(0,0,0,0)'); // Transparent for patterns
+                        colorExpression.push(condition, 'rgba(0,0,0,0)');
                         patternExpression.push(condition, patternId);
                         defaultOpacity = 0.7;
                         if (focusedLegend) {
                             const focusedPassport = Array.from(focusedLegend.value)[0];
                             if (bestOption.tiedPassports.includes(focusedPassport)) isHighlighted = true;
                         }
-
                     } else if (bestOption.tiedPassports.length === 1) {
-                        // Case: One clear winning passport.
                         const winner = bestOption.tiedPassports[0];
                         colorExpression.push(condition, sessionPassportColors[winner] || statusColors['na']);
                         patternExpression.push(condition, '');
                         defaultOpacity = 1.0;
                         if (focusedLegend?.value.has(winner)) isHighlighted = true;
-
                     } else {
-                        // Fallback for no data.
                         colorExpression.push(condition, defaultColor);
                         patternExpression.push(condition, '');
                         defaultOpacity = 1.0;
                     }
 
-                    // Determine final opacity based on whether a legend item is focused.
                     if (focusedLegend) {
                         opacityExpression.push(condition, isHighlighted ? 1.0 : 0.1);
                     } else {
@@ -754,7 +751,6 @@
                     }
                 });
 
-                // Set fallbacks for expressions
                 colorExpression.push(defaultColor);
                 patternExpression.push('');
                 opacityExpression.push(focusedLegend ? 0.1 : 1.0);
@@ -763,14 +759,17 @@
                 map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
                 map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
 
-            } else {
-                // --- Visa Status View Logic (Original Behavior) ---
+            } else { // Visa Status View
                 const colorExpression = ['case'];
                 const opacityExpression = ['case'];
-                allMapCodesA2.forEach(countryCodeA2 => {
+
+                allA3Codes.forEach(countryCodeA3 => {
+                    const countryCodeA2 = isoA3toA2[countryCodeA3];
+                    if (!countryCodeA2) return;
+
                     const bestOption = getBestOption(countryCodeA2, passportsToConsider);
                     const color = statusColors[bestOption.status] || defaultColor;
-                    const condition = ['==', ['get', 'iso_3166_1'], countryCodeA2];
+                    const condition = ['==', ['get', 'iso_3166_1_alpha_3'], countryCodeA3];
                     colorExpression.push(condition, color);
 
                     if (focusedLegend && focusedLegend.type === 'visa') {
@@ -778,10 +777,11 @@
                         opacityExpression.push(condition, isHighlighted ? 1.0 : 0.1);
                     }
                 });
-                colorExpression.push(defaultColor);
                 
+                colorExpression.push(defaultColor);
                 map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', ''); // IMPORTANT: Clear patterns
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', '');
+                
                 if (focusedLegend && focusedLegend.type === 'visa') {
                     opacityExpression.push(0.1);
                     map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
@@ -794,7 +794,7 @@
             const nonHighlightedOpacity = 0.1;
             if (focusedLegend) {
                 map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', nonHighlightedOpacity);
-                map.setPaintProperty('country-borders', 'line-opacity', 0); // Hide borders when focused for clarity
+                map.setPaintProperty('country-borders', 'line-opacity', 0);
                 map.setPaintProperty('country-borders-casing', 'line-opacity', 0);
             } else {
                 map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);

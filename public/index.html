@@ -110,50 +110,6 @@
         .dragging {
             opacity: 0.4;
         }
-        .drag-over-horizontal::after {
-            content: '';
-            display: block;
-            width: 4px;
-            height: 100%;
-            background: #3B82F6;
-            margin-left: -2px; /* Center the line */
-        }
-         .drag-over-vertical::after {
-            content: '';
-            display: block;
-            height: 4px;
-            width: 100%;
-            background: #3B82F6;
-            margin-top: -2px; /* Center the line */
-        }
-        /* Custom style for the difference toggle switch */
-        #diff-toggle {
-            appearance: none;
-            width: 3rem;
-            height: 1.5rem;
-            background-color: #d1d5db;
-            border-radius: 9999px;
-            position: relative;
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
-        }
-        #diff-toggle:checked {
-            background-color: #3b82f6;
-        }
-        #diff-toggle::before {
-            content: '';
-            position: absolute;
-            width: 1.25rem;
-            height: 1.25rem;
-            background-color: white;
-            border-radius: 50%;
-            top: 0.125rem;
-            left: 0.125rem;
-            transition: transform 0.2s ease-in-out;
-        }
-        #diff-toggle:checked::before {
-            transform: translateX(1.5rem);
-        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased overflow-hidden">
@@ -227,14 +183,12 @@
                 </div>
             </div>
         </div>
-        <!-- Selected Passports & Diff Toggle Container (Top Right) -->
-        <div class="absolute top-4 right-4 pointer-events-auto flex flex-col items-end gap-2 z-10">
-            <div id="map-selected-flags" class="flex flex-col space-y-2">
-                <!-- Selected flags on map view appear here -->
-            </div>
-            <div id="diff-toggle-container" class="hidden bg-white bg-opacity-90 backdrop-blur-sm rounded-full shadow-lg p-1 pr-2 flex items-center gap-2">
-                <label for="diff-toggle" class="text-xs font-semibold pl-2 cursor-pointer select-none">Show Differences</label>
-                <input type="checkbox" id="diff-toggle">
+        <!-- Selected Passports Container (Top Right) -->
+        <div class="absolute top-4 right-4 pointer-events-auto">
+            <div class="bg-transparent rounded-xl p-3">
+                 <div id="map-selected-flags" class="flex flex-col space-y-2">
+                     <!-- Selected flags on map view appear here -->
+                 </div>
             </div>
         </div>
     </div>
@@ -256,12 +210,9 @@
         const mapSelectedFlags = document.getElementById('map-selected-flags');
         const trayPlaceholder = document.getElementById('tray-placeholder');
         const notification = document.getElementById('notification');
-        const diffToggleContainer = document.getElementById('diff-toggle-container');
-        const diffToggle = document.getElementById('diff-toggle');
         
         let allVisaData = {};
         let currentView = 'visa';
-        let showDifferencesOnly = false; // NEW: State for the differences toggle
         let sessionPassportColors = {};
         let selectedPassports = [];
         let activePassports = []; // Passports currently toggled on for map view
@@ -269,17 +220,22 @@
         let notificationTimeout;
         let draggedElement = null; // For drag and drop
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
+        
+        // --- CONSTANTS AND NEW ADDITIONS FOR ADVANCED VIEW ---
+        const ALL_EQUAL_COLOR = '#808080'; // Neutral gray for ties
+        const ALL_EQUAL_LEGEND_ID = 'all-equal'; // Special ID for the legend
+
         // --- DATA MAPPING & PRIORITIES ---
         const statusPriority = { "citizen": 0, "fom": 1, "permit": 2, "vf": 3, "esta": 4, "eta": 4, "ev": 4, "voa": 5, "vr": 6, "denied": 7, "na": 8 };
         const statusText = { "citizen": "Citizen", "fom": "Freedom of Movement", "permit": "Travel Permit Required", "vf": "Visa Not Required", "voa": "Visa on Arrival", "esta": "ESTA", "eta": "eTA", "ev": "e-Visa / Online", "vr": "Visa Required", "denied": "Not Admitted", "na": "No Data" };
         const statusColors = { "citizen": "#8E44AD", "fom": "#81C784", "permit": "#3498DB", "vf": "#4CAF50", "voa": "#FFC107", "esta": "#2196F3", "eta": "#2196F3", "ev": "#2196F3", "vr": "#F44336", "denied": "#5D4037", "na": "#BDBDBD", "no-passport": "#E0E0E0" };
-        const ALL_EQUAL_COLOR = '#9E9E9E'; // NEW: Color for when all passports are tied
         const countryColorPalette = {'US': { primary: '#0A3161', secondary: '#B31942' }, 'GB': { primary: '#CF142B', secondary: '#00247D' },'CA': { primary: '#FF0000', secondary: '#FFFFFF' }, 'AU': { primary: '#00008B', secondary: '#FFCD00' },'NZ': { primary: '#00247D', secondary: '#CF142B' }, 'DE': { primary: '#000000', secondary: '#FFCE00' },'FR': { primary: '#0055A4', secondary: '#EF4135' }, 'IT': { primary: '#009246', secondary: '#CE2B37' },'ES': { primary: '#C60B1E', secondary: '#FFC400' }, 'JP': { primary: '#BC002D', secondary: '#FFFFFF' },'CN': { primary: '#EE1C25', secondary: '#FFFF00' }, 'IN': { primary: '#FF9933', secondary: '#138808' },'BR': { primary: '#009B3A', secondary: '#FFDF00' }, 'RU': { primary: '#D52B1E', secondary: '#0039A6' },'ZA': { primary: '#007A4D', secondary: '#FFB612' }, 'IE': { primary: '#169B62', secondary: '#FF883E' },'CH': { primary: '#FF0000', secondary: '#FFFFFF' }, 'SE': { primary: '#006AA7', secondary: '#FFCD00' },'NO': { primary: '#EF2B2D', secondary: '#002868' }, 'KR': { primary: '#CD2E3A', secondary: '#0047A0' }};
         const countryAliases = {"US": ["usa", "america", "united states"],"GB": ["uk", "great britain", "england", "scotland", "wales", "britain"],"AE": ["uae"],"KR": ["south korea", "republic of korea"],"KP": ["north korea"],"RU": ["russia"],"CZ": ["czechia"],"CD": ["drc", "congo dem. rep."],"CG": ["congo"],"BS": ["the bahamas"],"DO": ["dr", "dominican rep."],"CF": ["car", "central african rep."],"ZA": ["sa"],"NZ": ["new zeland"]};
         const apiPassportList = { "Afghanistan": "AF", "Albania": "AL", "Algeria": "DZ", "Andorra": "AD", "Angola": "AO", "Antigua and Barbuda": "AG", "Argentina": "AR", "Armenia": "AM", "Australia": "AU", "Austria": "AT", "Azerbaijan": "AZ", "Bahamas": "BS", "Bahrain": "BH", "Bangladesh": "BD", "Barbados": "BB", "Belarus": "BY", "Belgium": "BE", "Belize": "BZ", "Benin": "BJ", "Bhutan": "BT", "Bolivia": "BO", "Bosnia and Herzegovina": "BA", "Botswana": "BW", "Brazil": "BR", "Brunei": "BN", "Bulgaria": "BG", "Burkina Faso": "BF", "Burundi": "BI", "Cambodia": "KH", "Cameroon": "CM", "Canada": "CA", "Cape Verde": "CV", "Central African Republic": "CF", "Chad": "TD", "Chile": "CL", "China": "CN", "Colombia": "CO", "Comoros": "KM", "Congo": "CG", "Congo (Dem. Rep.)": "CD", "Costa Rica": "CR", "Cote d'Ivoire": "CI", "Croatia": "HR", "Cuba": "CU", "Cyprus": "CY", "Czech Republic": "CZ", "Denmark": "DK", "Djibouti": "DJ", "Dominica": "DM", "Dominican Republic": "DO", "Ecuador": "EC", "Egypt": "EG", "El Salvador": "SV", "Equatorial Guinea": "GQ", "Eritrea": "ER", "Estonia": "EE", "Eswatini": "SZ", "Ethiopia": "ET", "Fiji": "FJ", "Finland": "FI", "France": "FR", "Gabon": "GA", "Gambia": "GM", "Georgia": "GE", "Germany": "DE", "Ghana": "GH", "Greece": "GR", "Grenada": "GD", "Guatemala": "GT", "Guinea": "GN", "Guinea-Bissau": "GW", "Guyana": "GY", "Haiti": "HT", "Honduras": "HN", "Hong Kong": "HK", "Hungary": "HU", "Iceland": "IS", "India": "IN", "Indonesia": "ID", "Iran": "IR", "Iraq": "IQ", "Ireland": "IE", "Israel": "IL", "Italy": "IT", "Jamaica": "JM", "Japan": "JP", "Jordan": "JO", "Kazakhstan": "KZ", "Kenya": "KE", "Kiribati": "KI", "Kosovo": "XK", "Kuwait": "KW", "Kyrgyzstan": "KG", "Laos": "LA", "Latvia": "LV", "Lebanon": "LB", "Lesotho": "LS", "Liberia": "LR", "Libya": "LY", "Liechtenstein": "LI", "Lithuania": "LT", "Luxembourg": "LU", "Macau": "MO", "Madagascar": "MG", "Malawi": "MW", "Malaysia": "MY", "Maldives": "MV", "Mali": "ML", "Malta": "MT", "Marshall Islands": "MH", "Mauritania": "MR", "Mauritius": "MU", "Mexico": "MX", "Micronesia": "FM", "Moldova": "MD", "Monaco": "MC", "Mongolia": "MN", "Montenegro": "ME", "Morocco": "MA", "Mozambique": "MZ", "Myanmar": "MM", "Namibia": "NA", "Nauru": "NR", "Nepal": "NP", "Netherlands": "NL", "New Zealand": "NZ", "Nicaragua": "NI", "Niger": "NE", "Nigeria": "NG", "North Korea": "KP", "North Macedonia": "MK", "Norway": "NO", "Oman": "OM", "Pakistan": "PK", "Palau": "PW", "Palestinian Territories": "PS", "Panama": "PA", "Papua New Guinea": "PG", "Paraguay": "PY", "Peru": "PE", "Philippines": "PH", "Poland": "PL", "Portugal": "PT", "Qatar": "QA", "Romania": "RO", "Russian Federation": "RU", "Rwanda": "RW", "Saint Kitts and Nevis": "KN", "Saint Lucia": "LC", "Samoa": "WS", "San Marino": "SM", "Sao Tome and Principe": "ST", "Saudi Arabia": "SA", "Senegal": "SN", "Serbia": "RS", "Seychelles": "SC", "Sierra Leone": "SL", "Singapore": "SG", "Slovakia": "SK", "Slovenia": "SI", "Solomon Islands": "SB", "Somalia": "SO", "South Africa": "ZA", "South Korea": "KR", "South Sudan": "SS", "Spain": "ES", "Sri Lanka": "LK", "St. Vincent and the Grenadines": "VC", "Sudan": "SD", "Suriname": "SR", "Sweden": "SE", "Switzerland": "CH", "Syria": "SY", "Taiwan": "TW", "Tajikistan": "TJ", "Tanzania": "TZ", "Thailand": "TH", "Timor-Leste": "TL", "Togo": "TG", "Tonga": "TO", "Trinidad and Tobago": "TT", "Tunisia": "TN", "Türkiye": "TR", "Turkmenistan": "TM", "Tuvalu": "TV", "Uganda": "UG", "Ukraine": "UA", "United Arab Emirates": "AE", "United Kingdom": "GB", "United States of America": "US", "Uruguay": "UY", "Uzbekistan": "UZ", "Vanuatu": "VU", "Vatican City": "VA", "Venezuela": "VE", "Viet Nam": "VN", "Yemen": "YE", "Zambia": "ZM", "Zimbabwe": "ZW" };
         const countryCodeToNameMap = {};
         for (const name in apiPassportList) { countryCodeToNameMap[apiPassportList[name]] = name; }
         const isoA3toA2 = {'AFG': 'AF', 'ALB': 'AL', 'DZA': 'DZ', 'AND': 'AD', 'AGO': 'AO', 'ATG': 'AG', 'ARG': 'AR', 'ARM': 'AM', 'AUS': 'AU', 'AUT': 'AT', 'AZE': 'AZ', 'BHS': 'BS', 'BHR': 'BH', 'BGD': 'BD', 'BRB': 'BB', 'BLR': 'BY', 'BEL': 'BE', 'BLZ': 'BZ', 'BEN': 'BJ', 'BTN': 'BT', 'BOL': 'BO', 'BIH': 'BA', 'BWA': 'BW', 'BRA': 'BR', 'BRN': 'BN', 'BGR': 'BG', 'BFA': 'BF', 'BDI': 'BI', 'KHM': 'KH', 'CMR': 'CM', 'CAN': 'CA', 'CPV': 'CV', 'CAF': 'CF', 'TCD': 'TD', 'CHL': 'CL', 'CHN': 'CN', 'COL': 'CO', 'COM': 'KM', 'COG': 'CG', 'COD': 'CD', 'CRI': 'CR', 'CIV': 'CI', 'HRV': 'HR', 'CUB': 'CU', 'CYP': 'CY', 'CZE': 'CZ', 'DNK': 'DK', 'DJI': 'DJ', 'DMA': 'DM', 'DOM': 'DO', 'ECU': 'EC', 'EGY': 'EG', 'SLV': 'SV', 'GNQ': 'GQ', 'ERI': 'ER', 'EST': 'EE', 'SWZ': 'SZ', 'ETH': 'ET', 'FJI': 'FJ', 'FIN': 'FI', 'FRA': 'FR', 'GAB': 'GA', 'GMB': 'GM', 'GEO': 'GE', 'DEU': 'DE', 'GHA': 'GH', 'GRC': 'GR', 'GRD': 'GD', 'GTM': 'GT', 'GIN': 'GN', 'GNB': 'GW', 'GUY': 'GY', 'HTI': 'HT', 'HND': 'HN', 'HKG': 'HK', 'HUN': 'HU', 'ISL': 'IS', 'IND': 'IN', 'IDN': 'ID', 'IRN': 'IR', 'IRQ': 'IQ', 'IRL': 'IE', 'ISR': 'IL', 'ITA': 'IT', 'JAM': 'JM', 'JPN': 'JP', 'JOR': 'JO', 'KAZ': 'KZ', 'KEN': 'KE', 'KIR': 'KI', 'KOS': 'XK', 'KWT': 'KW', 'KGZ': 'KG', 'LAO': 'LA', 'LVA': 'LV', 'LBN': 'LB', 'LSO': 'LS', 'LBR': 'LR', 'LBY': 'LY', 'LIE': 'LI', 'LTU': 'LT', 'LUX': 'LU', 'MAC': 'MO', 'MDG': 'MG', 'MWI': 'MW', 'MYS': 'MY', 'MDV': 'MV', 'MLI': 'ML', 'MLT': 'MT', 'MHL': 'MH', 'MRT': 'MR', 'MUS': 'MU', 'MEX': 'MX', 'FSM': 'FM', 'MDA': 'MD', 'MCO': 'MC', 'MNG': 'MN', 'MNE': 'ME', 'MAR': 'MA', 'MOZ': 'MZ', 'MMR': 'MM', 'NAM': 'NA', 'NRU': 'NR', 'NPL': 'NP', 'NLD': 'NL', 'NZL': 'NZ', 'NIC': 'NI', 'NER': 'NE', 'NGA': 'NG', 'PRK': 'KP', 'MKD': 'MK', 'NOR': 'NO', 'OMN': 'OM', 'PAK': 'PK', 'PLW': 'PW', 'PSE': 'PS', 'PAN': 'PA', 'PNG': 'PG', 'PRY': 'PY', 'PER': 'PE', 'PHL': 'PH', 'POL': 'PL', 'PRT': 'PT', 'QAT': 'QA', 'ROU': 'RO', 'RUS': 'RU', 'RWA': 'RW', 'KNA': 'KN', 'LCA': 'LC', 'WSM': 'WS', 'SMR': 'SM', 'STP': 'ST', 'SAU': 'SA', 'SEN': 'SN', 'SRB': 'RS', 'SYC': 'SC', 'SLE': 'SL', 'SGP': 'SG', 'SVK': 'SK', 'SVN': 'SI', 'SLB': 'SB', 'SOM': 'SO', 'ZAF': 'ZA', 'KOR': 'KR', 'SSD': 'SS', 'ESP': 'ES', 'LKA': 'LK', 'VCT': 'VC', 'SDN': 'SD', 'SUR': 'SR', 'SWE': 'SE', 'CHE': 'CH', 'SYR': 'SY', 'TWN': 'TW', 'TJK': 'TJ', 'TZA': 'TZ', 'THA': 'TH', 'TLS': 'TL', 'TGO': 'TG', 'TON': 'TO', 'TTO': 'TT', 'TUN': 'TN', 'TUR': 'TR', 'TKM': 'TM', 'TUV': 'TV', 'UGA': 'UG', 'UKR': 'UA', 'ARE': 'AE', 'GBR': 'GB', 'USA': 'US', 'URY': 'UY', 'UZB': 'UZ', 'VUT': 'VU', 'VAT': 'VA', 'VEN': 'VE', 'VIR': 'VI', 'VNM': 'VN', 'YEM': 'YE', 'ZMB': 'ZM', 'ZWE': 'ZW', 'ESH': 'EH', 'GRL': 'GL', 'PRI': 'PR', 'NCL': 'FR', 'SJM': 'SJ', 'FLK': 'FK'};
+        
         // --- MAPBOX SETUP ---
         let map;
         let hoveredCountryId = null;
@@ -312,37 +268,33 @@
                 closeOnClick: false
             });
             map.on('load', () => {
-                // Add our custom source for country boundaries, with the worldview set directly
                 map.addSource('countries', {
                     'type': 'vector',
                     'url': 'mapbox://mapbox.country-boundaries-v1',
-                    'worldview': 'US' // This is now the single source of truth for boundaries
+                    'worldview': 'US' 
                 });
-                // Add our custom fill layer for coloring countries, EXCLUDING disputed territories
                 map.addLayer({
                     'id': MAP_LAYER_ID,
                     'type': 'fill',
                     'source': 'countries',
                     'source-layer': 'country_boundaries',
-                    'filter': ['==', ['get', 'disputed'], 'false'], // Only show non-disputed areas
+                    'filter': ['==', ['get', 'disputed'], 'false'],
                     'paint': {
                         'fill-color': statusColors['no-passport'],
                         'fill-opacity': 1.0
                     }
                 });
-                // Add a dedicated layer for all disputed territories to ensure consistent rendering
                 map.addLayer({
                     'id': DISPUTED_LAYER_ID,
                     'type': 'fill',
                     'source': 'countries',
                     'source-layer': 'country_boundaries',
-                    'filter': ['==', ['get', 'disputed'], 'true'], // Only show disputed areas
+                    'filter': ['==', ['get', 'disputed'], 'true'],
                     'paint': {
-                        'fill-color': statusColors['na'], // Statically set to 'No Data' color
+                        'fill-color': statusColors['na'],
                         'fill-opacity': 1.0
                     }
                 });
-                // Add a white "casing" layer for the borders to ensure contrast
                 map.addLayer({
                     'id': 'country-borders-casing',
                     'type': 'line',
@@ -355,7 +307,6 @@
                         'line-opacity': 0.8
                     }
                 });
-                // Add a separate, explicit border layer on top of the casing for high contrast
                 map.addLayer({
                     'id': 'country-borders',
                     'type': 'line',
@@ -387,7 +338,6 @@
                         const countryCodeA3 = feature.properties.iso_3166_1_alpha_3;
                         const countryCodeA2 = isoA3toA2[countryCodeA3];
                         let contentHTML;
-                        // Handle disputed territories specifically
                         if (feature.layer.id === DISPUTED_LAYER_ID) {
                             if (countryCodeA3 === 'FLK') {
                                 countryName = 'Falkland Islands / Islas Malvinas';
@@ -398,7 +348,6 @@
                             }
                             contentHTML = '<p>No visa data available.</p>';
                         } else {
-                            // Handle regular countries
                             if (countryCodeA2 === 'XK') {
                                 countryName = 'Kosovo';
                             }
@@ -416,17 +365,11 @@
                     map.getCanvas().style.cursor = '';
                     popup.remove();
                 });
-                // Signal that the map is ready
                 loader.style.opacity = '0';
                 setTimeout(() => { loader.style.display = 'none'; }, 500);
             });
-            // Add event listeners to ensure map colors are persistent
-            map.on('resize', () => {
-                updateMapColors();
-            });
-            map.on('moveend', () => {
-                updateMapColors();
-            });
+            map.on('resize', () => { updateMapColors(); });
+            map.on('moveend', () => { updateMapColors(); });
         }
         
         // --- CORE LOGIC ---
@@ -523,85 +466,124 @@
         function getVisaStatusFromString(visaInfo) {
             if (!visaInfo) return 'na';
             const lowerVisaInfo = visaInfo.toLowerCase();
-            // More specific checks first to avoid false positives.
             if (lowerVisaInfo.startsWith('freedom of movement')) return 'fom';
             if (lowerVisaInfo.startsWith('visa not required')) return 'vf';
             if (lowerVisaInfo.startsWith('citizen')) return 'citizen';
-            // Broader checks for other categories
             if (lowerVisaInfo.includes('visa on arrival') || lowerVisaInfo.includes('e-voa') || lowerVisaInfo.includes('entry permit on arrival') || lowerVisaInfo.includes('free visa on arrival')) return 'voa';
             if (lowerVisaInfo.includes('esta')) return 'esta';
             if (lowerVisaInfo.includes('eta') || lowerVisaInfo.includes('evisitor')) return 'eta';
             if (lowerVisaInfo.includes('evisa') || lowerVisaInfo.includes('pre-enrollment') || lowerVisaInfo.includes('online visa required')) return 'ev';
             if (lowerVisaInfo.includes('visa required') || lowerVisaInfo.includes('visa prior to arrival')) return 'vr';
             if (lowerVisaInfo.includes('not admitted')) return 'denied';
-            // Fallback for cases where the specific checks might have missed
             if (lowerVisaInfo.includes('freedom of movement')) return 'fom';
             return 'na';
         }
         
-        // MODIFIED: This function now returns detailed tie information
-        function getTravelOptions(countryCode, passports) {
+        /**
+         * [MODIFIED] Gets the best travel option(s) for a country from a list of passports.
+         * Now returns an array of all tied best passports.
+         */
+        function getBestOption(countryCode, passports) {
             // Handle special cases first
-            const specialCase = handleSpecialCases(countryCode, passports);
-            if (specialCase) return specialCase;
+            switch(countryCode) {
+                case 'AQ': case 'FO': case 'GF': case 'NC': case 'FK':
+                    return { status: 'na', stay: 0, tiedPassports: [], allTied: false, visa: 'No Data' };
+                case 'SJ':
+                    return { status: 'vf', stay: Infinity, tiedPassports: [], allTied: false, visa: 'Visa Free (Svalbard Treaty)' };
+                case 'PR': case 'VI':
+                    return getBestOption('US', passports);
+                case 'EH':
+                    return getBestOption('MA', passports);
+                case 'GL':
+                    const denmarkBestOption = getBestOption('DK', passports);
+                    if (denmarkBestOption.status === 'vf' || denmarkBestOption.status === 'fom') {
+                        return denmarkBestOption;
+                    } else {
+                        return { status: 'vr', stay: 0, tiedPassports: [], allTied: false, visa: 'Visa Required' };
+                    }
+            }
+
+            if (!passports || passports.length === 0) {
+                 return { status: 'na', stay: 0, tiedPassports: [], allTied: false, visa: 'No Data' };
+            }
 
             // Create a list of all options for the given country
             const options = passports.map((passport, index) => {
                 let visaInfo = allVisaData[passport]?.[countryCode] || { status: 'na', stay: 0, visa: 'No data' };
                 if (visaInfo.status === 'na' && visaInfo.visa) {
                     const derivedStatus = getVisaStatusFromString(visaInfo.visa);
-                    if (derivedStatus !== 'na') visaInfo = { ...visaInfo, status: derivedStatus };
+                    if (derivedStatus !== 'na') {
+                        visaInfo = { ...visaInfo, status: derivedStatus };
+                    }
                 }
                 return { ...visaInfo, passport, priority: statusPriority[visaInfo.status], order: index };
             });
 
-            // Sort the options to find the best one
+            // Sort options to find the best one
             options.sort((a, b) => {
                 if (a.priority !== b.priority) return a.priority - b.priority;
                 if (a.stay !== b.stay) return b.stay - a.stay;
                 return a.order - b.order;
             });
 
-            const bestOption = options[0] || { status: 'na', passport: null };
-            
-            // Find all options that are equally as good as the best one
-            const equallyGoodOptions = options.filter(opt => opt.priority === bestOption.priority && opt.stay === bestOption.stay);
-            const tiedPassports = equallyGoodOptions.map(opt => opt.passport);
-
-            let tieStatus;
-            if (passports.length <= 1) {
-                tieStatus = 'clear';
-            } else if (tiedPassports.length === 1) {
-                tieStatus = 'clear';
-            } else if (tiedPassports.length === passports.length) {
-                tieStatus = 'all_tie';
-            } else {
-                tieStatus = 'partial_tie';
+            const bestResult = options[0];
+            if (!bestResult) {
+                return { status: 'na', stay: 0, tiedPassports: [], allTied: false, visa: 'No Data' };
             }
 
-            return { bestOption, tieStatus, tiedPassports };
-        }
+            // Find all other passports that are equally as good as the best one
+            const tiedPassports = options
+                .filter(opt => opt.priority === bestResult.priority && opt.stay === bestResult.stay)
+                .map(opt => opt.passport);
+            
+            const allTied = tiedPassports.length > 1 && tiedPassports.length === passports.length;
 
-        function handleSpecialCases(countryCode, passports) {
-             const naResult = { bestOption: { status: 'na', stay: 0, passport: null, visa: 'No Data' }, tieStatus: 'clear', tiedPassports: [] };
-             const vfResult = { bestOption: { status: 'vf', stay: Infinity, passport: null, visa: 'Visa Free (Svalbard Treaty)' }, tieStatus: 'all_tie', tiedPassports: passports };
-
-             switch(countryCode) {
-                 case 'AQ': case 'FO': case 'GF': case 'NC': case 'FK': return naResult;
-                 case 'SJ': return vfResult;
-                 case 'PR': case 'VI': return getTravelOptions('US', passports);
-                 case 'EH': return getTravelOptions('MA', passports);
-                 case 'GL':
-                     const denmarkBestOption = getTravelOptions('DK', passports).bestOption;
-                     if (denmarkBestOption.status === 'vf' || denmarkBestOption.status === 'fom') {
-                         return getTravelOptions('DK', passports);
-                     } else {
-                         return { bestOption: { status: 'vr', stay: 0, passport: null, visa: 'Visa Required' }, tieStatus: 'all_tie', tiedPassports: passports };
-                     }
-                 default: return null;
-             }
+            return {
+                status: bestResult.status,
+                stay: bestResult.stay,
+                visa: bestResult.visa,
+                tiedPassports: tiedPassports,
+                allTied: allTied
+            };
         }
         
+        /**
+         * [NEW] Generates a striped pattern image from a list of passport codes and adds it to the map.
+         * This is used for countries where multiple passports are tied for the best travel option.
+         */
+        function generateAndAddStripePattern(passportCodes) {
+            const sortedCodes = [...passportCodes].sort();
+            const patternId = `stripes-${sortedCodes.join('-')}`;
+            if (map.hasImage(patternId)) {
+                return patternId;
+            }
+
+            const colors = sortedCodes.map(code => sessionPassportColors[code]);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const size = 32; // Power of 2 is good for performance
+            canvas.width = size;
+            canvas.height = size;
+
+            const numStripes = colors.length;
+            // Calculate total length for diagonal drawing
+            const diagonalLength = Math.sqrt(2 * size * size);
+            ctx.save();
+            ctx.rotate(45 * Math.PI / 180);
+            
+            const stripeWidth = diagonalLength / numStripes;
+
+            for (let i = 0; i < numStripes; i++) {
+                ctx.fillStyle = colors[i];
+                ctx.fillRect(0, i * stripeWidth - diagonalLength, diagonalLength, stripeWidth);
+            }
+            ctx.restore();
+            
+            const imageData = ctx.getImageData(0, 0, size, size);
+            map.addImage(patternId, imageData, { sdf: false }); // sdf: false is crucial for color patterns
+            return patternId;
+        }
+
         function handleLegendClick(type, value, clickedElement) {
             if (focusedLegend && focusedLegend.type === type && JSON.stringify(Array.from(focusedLegend.value)) === JSON.stringify(Array.from(value))) {
                 focusedLegend = null;
@@ -609,43 +591,18 @@
                 focusedLegend = { type, value };
             }
             
-            const allLegendItems = document.querySelectorAll('.legend-item');
-            allLegendItems.forEach(item => item.classList.remove('focused-legend-item'));
+            document.querySelectorAll('.legend-item').forEach(item => item.classList.remove('focused-legend-item'));
             
             if (focusedLegend) {
                 clickedElement.classList.add('focused-legend-item');
             }
             updateMapColors();
         }
-
-        // NEW: Creates a striped canvas pattern for partially tied countries
-        function createStripePattern(patternId, passportCodes) {
-            if (map.hasImage(patternId)) return;
-
-            const colors = passportCodes.map(code => sessionPassportColors[code]);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const size = 64;
-            canvas.width = size;
-            canvas.height = size;
-
-            const stripeWidth = size / colors.length;
-            ctx.clearRect(0, 0, size, size);
-
-            // Create diagonal stripes
-            ctx.save();
-            ctx.rotate(45 * Math.PI / 180);
-            ctx.translate(0, -size);
-
-            colors.forEach((color, i) => {
-                ctx.fillStyle = color;
-                ctx.fillRect(i * stripeWidth, 0, stripeWidth, size * 2);
-            });
-            ctx.restore();
-
-            map.addImage(patternId, canvas, { sdf: false });
-        }
-
+        
+        /**
+         * [MODIFIED] Updates the legends for both Visa Status and Best Passport views.
+         * Adds the "All Equal" item to the Best Passport legend when applicable.
+         */
         function updateLegends() {
             visaStatusLegend.innerHTML = '';
             bestPassportLegend.innerHTML = '';
@@ -654,10 +611,49 @@
             if (currentView === 'visa') {
                 visaStatusLegend.style.display = 'flex';
                 bestPassportLegend.style.display = 'none';
-                // ... (visa legend logic remains the same)
+                const applicableStatuses = new Set();
+                if (passportsToConsider.length > 0) {
+                    Object.values(isoA3toA2).forEach(countryCodeA2 => {
+                        if (countryCodeA2) {
+                            const bestOption = getBestOption(countryCodeA2, passportsToConsider);
+                            applicableStatuses.add(bestOption.status);
+                        }
+                    });
+                }
+                const legendGroups = {};
+                applicableStatuses.forEach(status => {
+                    const color = statusColors[status];
+                    const text = statusText[status];
+                    const priority = statusPriority[status];
+                    if (!color || !text || status === 'no-passport') return;
+                    if (!legendGroups[color]) {
+                        legendGroups[color] = { texts: new Set(), statuses: new Set(), priority: priority };
+                    }
+                    legendGroups[color].texts.add(text);
+                    legendGroups[color].statuses.add(status);
+                });
+                const sortedGroups = Object.values(legendGroups).sort((a, b) => a.priority - b.priority);
+                sortedGroups.forEach(group => {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                    legendItem.style.backgroundColor = group.color;
+                    legendItem.style.color = getContrastingTextColor(group.color);
+                    legendItem.textContent = Array.from(group.texts).join(' / ');
+                    legendItem.addEventListener('click', (e) => handleLegendClick('visa', group.statuses, e.currentTarget));
+                    visaStatusLegend.appendChild(legendItem);
+                });
+
             } else { // Best Passport View
                 visaStatusLegend.style.display = 'none';
                 bestPassportLegend.style.display = 'flex';
+                let hasAllEqual = false;
+                if (passportsToConsider.length > 0) {
+                     Object.values(isoA3toA2).forEach(countryCodeA2 => {
+                        if (countryCodeA2 && getBestOption(countryCodeA2, passportsToConsider).allTied) {
+                            hasAllEqual = true;
+                        }
+                    });
+                }
                 
                 passportsToConsider.forEach((passport) => {
                     const color = sessionPassportColors[passport];
@@ -665,114 +661,151 @@
                     if (passport === 'US') passportName = 'USA';
                     
                     const legendItem = document.createElement('div');
-                    legendItem.className = 'legend-item flex items-center text-xs font-medium px-2 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                    legendItem.className = 'legend-item flex items-center text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
                     legendItem.style.backgroundColor = color;
                     legendItem.style.color = getContrastingTextColor(color);
-                    legendItem.innerHTML = `<img src="https://flagcdn.com/w20/${passport.toLowerCase()}.png" class="w-5 h-auto mr-1.5 rounded-sm"> ${passportName}`;
+                    legendItem.innerHTML = `<span class="w-2 h-2 mr-1.5 rounded-full" style="background-color: ${color};"></span>${passportName}`;
                     legendItem.addEventListener('click', (e) => handleLegendClick('passport', new Set([passport]), e.currentTarget));
                     bestPassportLegend.appendChild(legendItem);
                 });
 
-                // NEW: Add extra legend items for "Show Differences" mode
-                if (showDifferencesOnly) {
-                    // "All Equal" legend item
-                    const allEqualItem = document.createElement('div');
-                    allEqualItem.className = 'legend-item flex items-center text-xs font-medium px-3 py-1 rounded-full';
-                    allEqualItem.style.backgroundColor = ALL_EQUAL_COLOR;
-                    allEqualItem.style.color = getContrastingTextColor(ALL_EQUAL_COLOR);
-                    allEqualItem.textContent = 'All Equal';
-                    bestPassportLegend.appendChild(allEqualItem);
-
-                    // "Multiple Options" (Partial Tie) legend item
-                    const partialTieItem = document.createElement('div');
-                    partialTieItem.className = 'legend-item flex items-center text-xs font-medium px-3 py-1 rounded-full';
-                    partialTieItem.style.backgroundImage = `repeating-linear-gradient(45deg, #ccc, #ccc 10px, #eee 10px, #eee 20px)`;
-                    partialTieItem.style.color = '#000000';
-                    partialTieItem.textContent = 'Multiple Options';
-                    bestPassportLegend.appendChild(partialTieItem);
+                if (hasAllEqual) {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                    legendItem.style.backgroundColor = ALL_EQUAL_COLOR;
+                    legendItem.style.color = getContrastingTextColor(ALL_EQUAL_COLOR);
+                    legendItem.textContent = 'All Equal';
+                    legendItem.addEventListener('click', (e) => handleLegendClick('passport', new Set([ALL_EQUAL_LEGEND_ID]), e.currentTarget));
+                    bestPassportLegend.appendChild(legendItem);
                 }
             }
-            // ... (rest of legend logic remains the same)
-        }
-        
-        function updateMapColors() {
-            if (!map || !map.isStyleLoaded()) return;
             
-            const passportsToConsider = activePassports;
-            const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
-            const allMapCodesA2 = Object.keys(isoA3toA2).map(key => isoA3toA2[key]);
-
-            // Reset paint properties to avoid conflicts between color and pattern
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', null);
-
-            // --- Standard View Logic ---
-            if (currentView === 'visa' || !showDifferencesOnly) {
-                const colorExpression = ['case'];
-                if (passportsToConsider.length > 0) {
-                    allMapCodesA2.forEach(countryCodeA2 => {
-                        if (!countryCodeA2) return;
-                        const { bestOption } = getTravelOptions(countryCodeA2, passportsToConsider);
-                        let color;
-                        if (currentView === 'visa') {
-                            color = statusColors[bestOption.status] || statusColors['na'];
-                        } else { // Best Passport View (standard)
-                            color = bestOption.passport ? (sessionPassportColors[bestOption.passport] || statusColors['na']) : statusColors['na'];
-                        }
-                        const condition = ['==', ['get', 'iso_3166_1'], countryCodeA2];
-                        colorExpression.push(condition, color);
-                    });
-                }
-                colorExpression.push(defaultColor);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-                // Opacity logic for focusing legend items
-                // ... (This part needs to be integrated with the focus logic)
-                return; // Exit after applying standard view
-            }
-
-            // --- NEW: "Show Differences Only" View Logic ---
-            const fillColorExpression = ['case'];
-            const fillPatternExpression = ['case'];
-            const fillOpacityExpression = ['case'];
-
-            if (passportsToConsider.length > 0) {
-                allMapCodesA2.forEach(countryCodeA2 => {
-                    if (!countryCodeA2) return;
-                    const { tieStatus, tiedPassports } = getTravelOptions(countryCodeA2, passportsToConsider);
-                    const condition = ['==', ['get', 'iso_3166_1'], countryCodeA2];
-
-                    switch (tieStatus) {
-                        case 'clear':
-                            const winnerColor = sessionPassportColors[tiedPassports[0]] || defaultColor;
-                            fillColorExpression.push(condition, winnerColor);
-                            fillOpacityExpression.push(condition, 1.0);
-                            break;
-                        case 'all_tie':
-                            fillColorExpression.push(condition, ALL_EQUAL_COLOR);
-                            fillOpacityExpression.push(condition, 0.1);
-                            break;
-                        case 'partial_tie':
-                            const sortedCodes = [...tiedPassports].sort();
-                            const patternId = `pattern-${sortedCodes.join('-')}`;
-                            createStripePattern(patternId, sortedCodes);
-                            
-                            fillColorExpression.push(condition, 'transparent'); // Use pattern instead of color
-                            fillPatternExpression.push(condition, patternId);
-                            fillOpacityExpression.push(condition, 0.5);
-                            break;
+            if(focusedLegend) {
+                // Re-apply focus styles after legend rebuild
+                const allLegendItems = document.querySelectorAll('.legend-item');
+                allLegendItems.forEach(item => {
+                    // This is a simplified check. A more robust check might involve data attributes.
+                    if(item.textContent.includes(focusedLegend.type === 'passport' ? (countryCodeToNameMap[Array.from(focusedLegend.value)[0]] || 'All Equal') : statusText[Array.from(focusedLegend.value)[0]])) {
+                        item.classList.add('focused-legend-item');
                     }
                 });
             }
-
-            // Set fallback values
-            fillColorExpression.push(defaultColor);
-            fillPatternExpression.push('');
-            fillOpacityExpression.push(1.0);
-            
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-color', fillColorExpression);
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', fillPatternExpression);
-            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', fillOpacityExpression);
         }
+        
+        /**
+         * [MODIFIED] Drastically updates map coloring logic for both views.
+         * Implements the new rules for Best Passport view: solid, striped, and "All Equal" states.
+         * Handles complex opacity changes based on default state and legend focus.
+         */
+        function updateMapColors() {
+            if (!map || !map.isStyleLoaded()) return;
 
+            const passportsToConsider = activePassports;
+            const defaultColor = passportsToConsider.length === 0 ? statusColors['no-passport'] : statusColors['na'];
+            const allMapCodesA2 = Object.values(isoA3toA2).filter(c => c);
+
+            // --- Best Passport View Logic ---
+            if (currentView === 'passport' && passportsToConsider.length > 0) {
+                const colorExpression = ['case'];
+                const patternExpression = ['case'];
+                const opacityExpression = ['case'];
+
+                allMapCodesA2.forEach(countryCodeA2 => {
+                    const bestOption = getBestOption(countryCodeA2, passportsToConsider);
+                    const condition = ['==', ['get', 'iso_3166_1'], countryCodeA2];
+                    
+                    let defaultOpacity = 1.0;
+                    let isHighlighted = false;
+
+                    if (bestOption.allTied) {
+                        // Case: All selected passports are equally the best.
+                        colorExpression.push(condition, ALL_EQUAL_COLOR);
+                        patternExpression.push(condition, '');
+                        defaultOpacity = 0.1;
+                        if (focusedLegend?.value.has(ALL_EQUAL_LEGEND_ID)) isHighlighted = true;
+
+                    } else if (bestOption.tiedPassports.length > 1) {
+                        // Case: A subset of passports are tied for best. Use stripes.
+                        const patternId = generateAndAddStripePattern(bestOption.tiedPassports);
+                        colorExpression.push(condition, 'rgba(0,0,0,0)'); // Transparent for patterns
+                        patternExpression.push(condition, patternId);
+                        defaultOpacity = 0.7;
+                        if (focusedLegend) {
+                            const focusedPassport = Array.from(focusedLegend.value)[0];
+                            if (bestOption.tiedPassports.includes(focusedPassport)) isHighlighted = true;
+                        }
+
+                    } else if (bestOption.tiedPassports.length === 1) {
+                        // Case: One clear winning passport.
+                        const winner = bestOption.tiedPassports[0];
+                        colorExpression.push(condition, sessionPassportColors[winner] || statusColors['na']);
+                        patternExpression.push(condition, '');
+                        defaultOpacity = 1.0;
+                        if (focusedLegend?.value.has(winner)) isHighlighted = true;
+
+                    } else {
+                        // Fallback for no data.
+                        colorExpression.push(condition, defaultColor);
+                        patternExpression.push(condition, '');
+                        defaultOpacity = 1.0;
+                    }
+
+                    // Determine final opacity based on whether a legend item is focused.
+                    if (focusedLegend) {
+                        opacityExpression.push(condition, isHighlighted ? 1.0 : 0.1);
+                    } else {
+                        opacityExpression.push(condition, defaultOpacity);
+                    }
+                });
+
+                // Set fallbacks for expressions
+                colorExpression.push(defaultColor);
+                patternExpression.push('');
+                opacityExpression.push(focusedLegend ? 0.1 : 1.0);
+
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
+
+            } else {
+                // --- Visa Status View Logic (Original Behavior) ---
+                const colorExpression = ['case'];
+                const opacityExpression = ['case'];
+                allMapCodesA2.forEach(countryCodeA2 => {
+                    const bestOption = getBestOption(countryCodeA2, passportsToConsider);
+                    const color = statusColors[bestOption.status] || defaultColor;
+                    const condition = ['==', ['get', 'iso_3166_1'], countryCodeA2];
+                    colorExpression.push(condition, color);
+
+                    if (focusedLegend && focusedLegend.type === 'visa') {
+                        const isHighlighted = focusedLegend.value.has(bestOption.status);
+                        opacityExpression.push(condition, isHighlighted ? 1.0 : 0.1);
+                    }
+                });
+                colorExpression.push(defaultColor);
+                
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', ''); // IMPORTANT: Clear patterns
+                if (focusedLegend && focusedLegend.type === 'visa') {
+                    opacityExpression.push(0.1);
+                    map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
+                } else {
+                    map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
+                }
+            }
+
+            // --- Universal Opacity Rules for Borders and Disputed Areas ---
+            const nonHighlightedOpacity = 0.1;
+            if (focusedLegend) {
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', nonHighlightedOpacity);
+                map.setPaintProperty('country-borders', 'line-opacity', nonHighlightedOpacity);
+                map.setPaintProperty('country-borders-casing', 'line-opacity', nonHighlightedOpacity);
+            } else {
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+                map.setPaintProperty('country-borders', 'line-opacity', 1.0);
+                map.setPaintProperty('country-borders-casing', 'line-opacity', 0.8);
+            }
+        }
 
         function generateInfoContent(countryCodeA2) {
             const passportsToConsider = activePassports;
@@ -783,16 +816,9 @@
             let lookupCode = countryCodeA2;
             let specialNote = '';
             switch(countryCodeA2) {
-                case 'SJ':
-                    return '<p>Visa Free for all nationalities (Svalbard Treaty).</p>';
-                case 'FK':
-                case 'AQ':
-                case 'FO':
-                case 'GF':
-                case 'NC':
-                    return '<p>No visa data available.</p>';
-                case 'PR':
-                case 'VI':
+                case 'SJ': return '<p>Visa Free for all nationalities (Svalbard Treaty).</p>';
+                case 'FK': case 'AQ': case 'FO': case 'GF': case 'NC': return '<p>No visa data available.</p>';
+                case 'PR': case 'VI':
                     lookupCode = 'US';
                     specialNote = `<p class="text-xs text-gray-600 pb-2 border-b mb-2">Policy follows United States.</p>`;
                     break;
@@ -801,7 +827,7 @@
                     specialNote = `<p class="text-xs text-gray-600 pb-2 border-b mb-2">Policy follows Morocco.</p>`;
                     break;
                 case 'GL':
-                    const denmarkBestOption = getTravelOptions('DK', passportsToConsider).bestOption;
+                    const denmarkBestOption = getBestOption('DK', passportsToConsider);
                     specialNote = `<p class="text-xs text-gray-600 pb-2 border-b mb-2">Policy follows Denmark for visa-free travel.</p>`;
                     if (denmarkBestOption.status !== 'vf' && denmarkBestOption.status !== 'fom') {
                          return specialNote + `<ul class="space-y-2"><li><span class="w-3 h-3 rounded-full mr-3 info-vr" style="display: inline-block; vertical-align: middle;"></span><span>Visa Required</span></li></ul>`;
@@ -834,8 +860,6 @@
             contentHTML += '</ul>';
             return contentHTML;
         }
-        
-        // MODIFIED: Fetches visa data for each passport individually to avoid server errors.
         async function switchToMapView() {
             if (selectedPassports.length === 0) return;
             loaderText.textContent = 'Loading Visa Data...';
@@ -843,37 +867,21 @@
             await new Promise(resolve => setTimeout(resolve, 10));
             loader.style.opacity = '1';
             loader.style.pointerEvents = 'auto';
-
             try {
-                // Create an array of fetch promises, one for each selected passport.
-                const promises = selectedPassports.map(passport =>
-                    fetch('/api/visa-data', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ passports: [passport] }) // Send one passport at a time
-                    }).then(response => {
-                        if (!response.ok) {
-                            throw new Error(`Failed to fetch data for ${passport}`);
-                        }
-                        return response.json();
-                    })
-                );
-
-                // Wait for all the individual fetch requests to complete.
-                const results = await Promise.all(promises);
-
-                // Merge the results from all requests into a single allVisaData object.
-                allVisaData = {};
-                results.forEach(result => {
-                    Object.assign(allVisaData, result);
+                const response = await fetch('/api/visa-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ passports: selectedPassports })
                 });
+                if (!response.ok) throw new Error(`Could not fetch visa data from server: ${response.statusText}`);
+                allVisaData = await response.json();
                 
                 const specialPermitData = { status: 'permit', stay: Infinity, visa: 'Travel Permit Required' };
                 if (allVisaData['HK']) allVisaData['HK']['CN'] = { ...specialPermitData };
                 if (allVisaData['MO']) allVisaData['MO']['CN'] = { ...specialPermitData };
                 if (allVisaData['CN']) {
                     allVisaData['CN']['HK'] = { ...specialPermitData };
-                    allVisaData['CN']['MO'] = { ...specialPermitData }; // Typo fixed here
+                    allVisaData['CN']['MO'] = { ...specialPermitData };
                 }
                 
                 sessionPassportColors = assignPassportColors(selectedPassports);
@@ -887,7 +895,7 @@
                 if (map) map.resize();
             } catch(error) {
                 console.error(error);
-                alert("Failed to load visa data from the server. See console for details.");
+                showNotification("Failed to load visa data from the server.");
             } finally {
                 loader.style.opacity = '0';
                 loader.style.pointerEvents = 'none';
@@ -987,16 +995,11 @@
                 activeSet.add(code);
             }
             
-            // Rebuild activePassports array based on the master selectedPassports order
             activePassports = selectedPassports.filter(p => activeSet.has(p));
             
-            focusedLegend = null; // Clear legend focus when toggling flags
-            updateActiveFlagsUI();
-            updateMapColors();
-            updateLegends();
+            resetMapFocus(); // Resets focus and recalculates everything
         }
         function resetMapFocus() {
-            activePassports = [...selectedPassports];
             focusedLegend = null;
             updateActiveFlagsUI();
             updateMapColors();
@@ -1129,23 +1132,16 @@
             });
             visaViewBtn.addEventListener('click', () => {
                  currentView = 'visa';
-                 diffToggleContainer.classList.add('hidden'); // Hide toggle
                  visaViewBtn.classList.add('active');
                  passportViewBtn.classList.remove('active');
                  resetMapFocus();
             });
             passportViewBtn.addEventListener('click', () => {
                  currentView = 'passport';
-                 diffToggleContainer.classList.remove('hidden'); // Show toggle
                  passportViewBtn.classList.add('active');
                  visaViewBtn.classList.remove('active');
                  resetMapFocus();
-            });
-            // NEW: Listener for the difference toggle
-            diffToggle.addEventListener('change', (e) => {
-                showDifferencesOnly = e.target.checked;
-                resetMapFocus(); // This will re-render map and legends
-            });
+             });
             selectedFlagsContainer.addEventListener('click', handleTrayFlagClick);
             mapSelectedFlags.addEventListener('click', handleMapFlagClick);
             // Drag and Drop Listeners
@@ -1172,7 +1168,7 @@
                 await initializeMap(token);
             } catch (error) {
                 console.error("Map initialization failed:", error);
-                alert("Could not initialize the map. A Mapbox token is required. Please check the backend configuration.");
+                showNotification("Could not initialize the map. Check backend configuration.");
                 loaderText.textContent = 'Error loading map.';
             }
         }

@@ -874,13 +874,16 @@
                     }
                 } else if (result.tyingPassports.length > 1) {
                     // Partial tie - use stripe pattern
-                    const patternKey = createTiePattern(result.tyingPassports);
-                    // GUARD: Check if the pattern actually exists on the map before trying to use it.
-                    if (patternKey && map.hasImage(patternKey)) {
+                    const sortedCodes = [...result.tyingPassports].sort();
+                    const patternKey = `stripes-${sortedCodes.join('-')}`;
+                    
+                    // GUARD: Check if the pre-generated pattern exists.
+                    if (map.hasImage(patternKey)) {
                         colorExpression.push(condition, 'transparent'); 
                         patternExpression.push(condition, patternKey);
                     } else {
                         // Fallback to a solid color if pattern isn't ready for any reason.
+                        console.warn(`Pattern '${patternKey}' was not pre-generated. Falling back to solid color.`);
                         colorExpression.push(condition, TIE_COLOR); 
                         patternExpression.push(condition, null);
                     }

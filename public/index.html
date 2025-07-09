@@ -879,9 +879,9 @@
                     const sortedCodes = [...result.tyingPassports].sort();
                     const patternKey = `stripes-${sortedCodes.join('-')}`;
                     
-                    // FINAL FIX: Set a base color INSTEAD of transparent
+                    // FINAL FIX: Set fill-color to transparent to allow pattern to show
                     if (map.hasImage(patternKey)) {
-                        colorExpression.push(condition, sessionPassportColors[result.tyingPassports[0]]); 
+                        colorExpression.push(condition, 'transparent'); 
                         patternExpression.push(condition, patternKey);
                     } else {
                         // Fallback to a solid color if pattern isn't ready.
@@ -908,23 +908,19 @@
             opacityExpression.push(focusedLegend ? 0.1 : 1.0);
             borderOpacityExpression.push(focusedLegend ? 0.15 : 1.0);
 
-            // Use a timeout to ensure patterns are loaded before being applied.
-            setTimeout(() => {
-                if (!map || !map.style) return; // Ensure map is still valid before updating
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
-                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
-                
-                if (focusedLegend) {
-                    map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.1);
-                    map.setPaintProperty('country-borders', 'line-opacity', borderOpacityExpression);
-                    map.setPaintProperty('country-borders-casing', 'line-opacity', borderOpacityExpression);
-                } else {
-                    map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
-                    map.setPaintProperty('country-borders', 'line-opacity', 1.0);
-                    map.setPaintProperty('country-borders-casing', 'line-opacity', 0.8);
-                }
-            }, 0);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', opacityExpression);
+            
+            if (focusedLegend) {
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.1);
+                map.setPaintProperty('country-borders', 'line-opacity', borderOpacityExpression);
+                map.setPaintProperty('country-borders-casing', 'line-opacity', borderOpacityExpression);
+            } else {
+                map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
+                map.setPaintProperty('country-borders', 'line-opacity', 1.0);
+                map.setPaintProperty('country-borders-casing', 'line-opacity', 0.8);
+            }
         }
         // --- STRIPE FIX END ---
 
@@ -1019,7 +1015,11 @@
                 mapView.style.opacity = '1';
                 mapView.style.pointerEvents = 'auto';
                 
-                if (map) map.resize();
+                if (map) {
+                    map.resize();
+                    // Force a repaint after a short delay to ensure patterns are ready
+                    setTimeout(() => updateMapColors(), 100);
+                }
             } catch(error) {
                 console.error(error);
                 alert("Failed to load visa data from the server. See console for details.");

@@ -247,9 +247,7 @@
         // --- MAPBOX SETUP ---
         let map;
         let hoveredCountryId = null;
-        const VISA_LAYER_ID = 'visa-status-fills';
-        const PASSPORT_COLOR_LAYER_ID = 'best-passport-colors';
-        const PASSPORT_PATTERN_LAYER_ID = 'best-passport-patterns';
+        const MAP_LAYER_ID = 'country-fills';
         const DISPUTED_LAYER_ID = 'disputed-territories-fill';
 
         async function initializeMap(token) {
@@ -289,34 +287,17 @@
                 // --- LAYER SETUP ---
                 const layerFilter = ['==', ['get', 'disputed'], 'false'];
 
-                // Layer for Visa Status view
+                // A single layer for all country fills.
                 map.addLayer({
-                    'id': VISA_LAYER_ID,
+                    'id': MAP_LAYER_ID,
                     'type': 'fill',
                     'source': 'countries',
                     'source-layer': 'country_boundaries',
                     'filter': layerFilter,
-                    'paint': { 'fill-color': statusColors['no-passport'], 'fill-opacity': 1.0 }
-                });
-
-                // Layer for Best Passport view (solid colors)
-                map.addLayer({
-                    'id': PASSPORT_COLOR_LAYER_ID,
-                    'type': 'fill',
-                    'source': 'countries',
-                    'source-layer': 'country_boundaries',
-                    'filter': layerFilter,
-                    'paint': { 'fill-color': statusColors['no-passport'], 'fill-opacity': 0 } // Initially hidden
-                });
-
-                // Layer for Best Passport view (stripe patterns)
-                map.addLayer({
-                    'id': PASSPORT_PATTERN_LAYER_ID,
-                    'type': 'fill',
-                    'source': 'countries',
-                    'source-layer': 'country_boundaries',
-                    'filter': layerFilter,
-                    'paint': { 'fill-opacity': 0 } // Initially hidden
+                    'paint': { 
+                        'fill-color': statusColors['no-passport'],
+                        'fill-opacity': 1.0
+                    }
                 });
 
                 // Add a dedicated layer for all disputed territories to ensure consistent rendering
@@ -358,7 +339,7 @@
                 });
 
                 // --- Map Interactions ---
-                const interactiveLayerIds = [VISA_LAYER_ID, PASSPORT_COLOR_LAYER_ID, DISPUTED_LAYER_ID];
+                const interactiveLayerIds = [MAP_LAYER_ID, DISPUTED_LAYER_ID];
                 const kashmirNames = ['Jammu and Kashmir', 'Azad Kashmir', 'Gilgit-Baltistan', 'Aksai Chin', 'Ladakh'];
                 map.on('mousemove', interactiveLayerIds, (e) => {
                     if (e.features.length > 0) {
@@ -744,10 +725,6 @@
         }
 
         function updateVisaStatusMapColors() {
-            map.setPaintProperty(VISA_LAYER_ID, 'fill-opacity', 1);
-            map.setPaintProperty(PASSPORT_COLOR_LAYER_ID, 'fill-opacity', 0);
-            map.setPaintProperty(PASSPORT_PATTERN_LAYER_ID, 'fill-opacity', 0);
-
             const colorExpression = ['case'];
             const fillOpacityExpression = ['case'];
             const borderOpacityExpression = ['case'];
@@ -771,17 +748,18 @@
             }
 
             colorExpression.push(defaultColor);
-            map.setPaintProperty(VISA_LAYER_ID, 'fill-color', colorExpression);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', null); // Explicitly remove pattern
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
 
             if (focusedLegend && focusedLegend.type === 'visa') {
                 fillOpacityExpression.push(0.1);
                 borderOpacityExpression.push(0.15);
-                map.setPaintProperty(VISA_LAYER_ID, 'fill-opacity', fillOpacityExpression);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', fillOpacityExpression);
                 map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 0.1);
                 map.setPaintProperty('country-borders', 'line-opacity', borderOpacityExpression);
                 map.setPaintProperty('country-borders-casing', 'line-opacity', borderOpacityExpression);
             } else {
-                map.setPaintProperty(VISA_LAYER_ID, 'fill-opacity', 1.0);
+                map.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', 1.0);
                 map.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', 1.0);
                 map.setPaintProperty('country-borders', 'line-opacity', 1.0);
                 map.setPaintProperty('country-borders-casing', 'line-opacity', 0.8);
@@ -870,10 +848,6 @@
         }
 
         function updateBestPassportMapColors() {
-            map.setPaintProperty(VISA_LAYER_ID, 'fill-opacity', 0);
-            map.setPaintProperty(PASSPORT_COLOR_LAYER_ID, 'fill-opacity', 1);
-            map.setPaintProperty(PASSPORT_PATTERN_LAYER_ID, 'fill-opacity', 1);
-
             const colorExpression = ['case'];
             const patternExpression = ['case'];
             const passportsToConsider = activePassports;
@@ -902,7 +876,7 @@
                     const patternKey = `stripes-${sortedCodes.join('-')}`;
                     
                     // FINAL FIX: Set fill-color to transparent to allow pattern to show
-                    colorExpression.push(condition, 'transparent'); 
+                    colorExpression.push(condition, 'rgba(0, 0, 0, 0)'); 
                     patternExpression.push(condition, patternKey);
                 }
             });
@@ -911,8 +885,8 @@
             colorExpression.push(statusColors['no-passport']);
             patternExpression.push(null);
 
-            map.setPaintProperty(PASSPORT_COLOR_LAYER_ID, 'fill-color', colorExpression);
-            map.setPaintProperty(PASSPORT_PATTERN_LAYER_ID, 'fill-pattern', patternExpression);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+            map.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
         }
         // --- STRIPE FIX END ---
 

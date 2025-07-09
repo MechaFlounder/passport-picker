@@ -230,7 +230,6 @@
         let notificationTimeout;
         let draggedElement = null; // For drag and drop
         const fallbackColors = ['#E6194B', '#FFE119', '#F58231', '#911EB4', '#46F0F0', '#F032E6', '#BCF60C', '#FABEBE', '#008080', '#E6BEFF'];
-        let generatedPatterns = new Set(); // Cache for stripe patterns
 
         // --- DATA MAPPING & PRIORITIES ---
         const statusPriority = { "citizen": 0, "fom": 1, "permit": 2, "vf": 3, "esta": 4, "eta": 4, "ev": 4, "voa": 5, "vr": 6, "denied": 7, "na": 8 };
@@ -768,85 +767,6 @@
 
         // --- STRIPE FIX START ---
         
-        // Helper function to generate combinations for pre-generation
-        function getCombinations(array, size) {
-            const result = [];
-            function combination(temp, start) {
-                if (temp.length === size) {
-                    result.push([...temp]);
-                    return;
-                }
-                for (let i = start; i < array.length; i++) {
-                    temp.push(array[i]);
-                    combination(temp, i + 1);
-                    temp.pop();
-                }
-            }
-            combination([], 0);
-            return result;
-        }
-
-        // New function to pre-generate all possible tie patterns
-        function pregenerateAllPatterns() {
-            if (!map) return;
-            // We only need to generate patterns for ties of 2 or more passports
-            for (let size = 2; size <= selectedPassports.length; size++) {
-                const combinations = getCombinations(selectedPassports, size);
-                combinations.forEach(combo => {
-                    // This will create and add the pattern to the map if it doesn't exist
-                    createTiePattern(combo);
-                });
-            }
-        }
-
-        function createTiePattern(passportCodes) {
-            const sortedCodes = [...passportCodes].sort();
-            const patternId = `stripes-${sortedCodes.join('-')}`;
-            if (map.hasImage(patternId)) {
-                return patternId;
-            }
-
-            const colors = sortedCodes.map(code => sessionPassportColors[code]);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const size = 32; // A good size for patterns
-            canvas.width = size;
-            canvas.height = size;
-
-            const stripeWidth = Math.max(4, size / colors.length); // Ensure stripes aren't too thin
-            const step = stripeWidth;
-
-            ctx.globalAlpha = 1.0; // Set to 100% opacity
-
-            // The pattern needs to cover a diagonal space, so we draw from -size to size
-            for (let i = -size; i < size * 2; i += step) {
-                // Assign a color based on the stripe's position
-                ctx.fillStyle = colors[Math.floor(Math.abs(i / step)) % colors.length];
-                ctx.beginPath();
-                // Define the four corners of the diagonal stripe (a parallelogram)
-                ctx.moveTo(i, 0);
-                ctx.lineTo(i + step, 0);
-                ctx.lineTo(i - size + step, size);
-                ctx.lineTo(i - size, size);
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            const imageData = ctx.getImageData(0, 0, size, size);
-            try {
-                if (map.hasImage(patternId)) {
-                    map.updateImage(patternId, imageData);
-                } else {
-                    map.addImage(patternId, imageData, { sdf: false });
-                }
-                generatedPatterns.add(patternId);
-                return patternId;
-            } catch (e) {
-                console.error(`Failed to add/update pattern image '${patternId}' on map:`, e);
-                return null;
-            }
-        }
-
         function updateBestPassportMapColors() {
             const colorExpression = ['case'];
             const patternExpression = ['case'];

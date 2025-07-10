@@ -749,7 +749,14 @@
         "Switch to the 'Best Passport' view to see which of your passports is optimal for each country."
     ];
     const randomTip = tips[Math.floor(Math.random() * tips.length)];
-    loaderText.innerHTML = `Loading Visa Data...<br><span class="text-base font-normal text-gray-600 mt-2 block">Tip: ${randomTip}</span>`;
+    loaderText.innerHTML = `
+    Loading Visa Data...
+    <div class="mt-4 p-4 bg-blue-100 border border-blue-200 rounded-lg max-w-sm mx-auto text-left shadow-sm">
+        <p class="text-lg text-gray-800">
+            <span class="font-bold block mb-1">Tip:</span>
+            ${randomTip}
+        </p>
+    </div>`;
     // --- End Tip Logic ---
 
     loader.style.display = 'flex';

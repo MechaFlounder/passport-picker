@@ -261,9 +261,9 @@
                 center: [0, 20],
                 zoom: 1.5,
                 projection: 'naturalEarth',
-		dragRotate: false, // Disables mouse rotation
-    		touchZoomRotate: false // Disables touch rotation and zoom
+		dragRotate: false // Disables mouse rotation
             });
+		map.touchZoomRotate.disableRotation();
             const popup = new mapboxgl.Popup({
                 closeButton: false,
                 closeOnClick: false

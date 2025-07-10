@@ -24,7 +24,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Mapbox GL JS -->
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <link href='httpshttps://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -611,11 +611,9 @@
 
         /**
          * Generates all possible stripe patterns for passport ties and adds them to the passport map.
-         * This is called once when switching to the map view.
          */
         function pregenerateAllPatterns() {
             if (!passportMap || selectedPassports.length < 2) return;
-
             // Generate patterns for ties of 2 or more passports
             for (let size = 2; size <= selectedPassports.length; size++) {
                 const combinations = getCombinations(selectedPassports, size);
@@ -632,25 +630,18 @@
         function addTiePatternToMap(passportCodes) {
             const sortedCodes = [...passportCodes].sort();
             const patternId = `stripes-${sortedCodes.join('-')}`;
-
-            // If the image already exists on the map, don't re-add it.
-            if (passportMap.hasImage(patternId)) {
-                return;
-            }
+            if (passportMap.hasImage(patternId)) return;
 
             const colors = sortedCodes.map(code => sessionPassportColors[code]);
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const size = 20; // A good size for stripe patterns
+            const size = 20;
             canvas.width = size;
             canvas.height = size;
-
-            const stripeWidth = Math.max(2, size / colors.length); // Ensure stripes are not too thin
+            const stripeWidth = Math.max(2, size / colors.length);
             const step = stripeWidth;
-
             ctx.globalAlpha = 1.0;
 
-            // Draw diagonal stripes on the canvas
             for (let i = -size; i < size * 2; i += step) {
                 ctx.fillStyle = colors[Math.floor(Math.abs(i / step)) % colors.length];
                 ctx.beginPath();
@@ -661,19 +652,34 @@
                 ctx.closePath();
                 ctx.fill();
             }
-
             const imageData = ctx.getImageData(0, 0, size, size);
             passportMap.addImage(patternId, imageData, { sdf: false });
         }
 
         /**
-         * Updates the 'Best Passport' map colors and patterns based on the active passports.
-         * This function now uses pre-generated patterns and correctly handles solid colors.
+         * Creates a 1x1 solid color pattern and adds it to the map.
+         * @param {string} color - The hex color for the pattern.
+         * @param {string} patternId - The ID to assign to the pattern image.
+         */
+        function addSolidPatternToMap(color, patternId) {
+            if (!passportMap || passportMap.hasImage(patternId)) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = 1;
+            canvas.height = 1;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            const imageData = ctx.getImageData(0, 0, 1, 1);
+            passportMap.addImage(patternId, imageData, { sdf: false });
+        }
+
+        /**
+         * Updates the 'Best Passport' map using only fill patterns for all cases (solid, striped, etc.).
+         * This avoids conflicts between fill-color and fill-pattern properties.
          */
         function updateBestPassportMapColors() {
             if (!passportMap || !passportMap.isStyleLoaded()) return;
 
-            const colorExpression = ['case'];
             const patternExpression = ['case'];
             const fillOpacityExpression = ['case'];
             const borderOpacityExpression = ['case'];
@@ -690,36 +696,32 @@
                 const condition = ['==', ['get', 'iso_3166_1'], countryCode];
                 let isCountryHighlighted = !focusedLegend || (focusedLegend.type === 'tie' ? result.allPassportsTie : (focusedLegend.type === 'passport' ? result.tyingPassports.some(p => focusedLegend.value.includes(p)) : false));
 
-                // Assign color or pattern based on the visa result
+                // Assign a pattern ID based on the visa result
                 if (result.tyingPassports.length === 1 && result.tyingPassports[0]) {
-                    // Case 1: Clear Winner (Solid Color)
-                    colorExpression.push(condition, sessionPassportColors[result.tyingPassports[0]]);
-                    patternExpression.push(condition, null);
+                    // Case 1: Clear Winner (Solid Pattern)
+                    patternExpression.push(condition, `solid-${result.tyingPassports[0]}`);
                 } else if (result.allPassportsTie) {
-                    // Case 2: All Passports are Equal (Solid Tie Color)
-                    colorExpression.push(condition, TIE_COLOR);
-                    patternExpression.push(condition, null);
+                    // Case 2: All Passports are Equal (Solid Tie Pattern)
+                    patternExpression.push(condition, 'solid-tie');
                 } else if (result.tyingPassports.length > 1) {
                     // Case 3: Partial Tie (Stripes)
                     const patternId = `stripes-${[...result.tyingPassports].sort().join('-')}`;
-                    colorExpression.push(condition, 'rgba(0,0,0,0)'); // Transparent to let pattern show
                     patternExpression.push(condition, patternId);
                 } else {
-                    // Fallback for no data or other cases
-                    colorExpression.push(condition, statusColors['na']);
-                    patternExpression.push(condition, null);
+                    // Fallback for no data
+                    patternExpression.push(condition, 'solid-na');
                 }
 
                 fillOpacityExpression.push(condition, isCountryHighlighted ? 1.0 : 0.1);
                 borderOpacityExpression.push(condition, isCountryHighlighted ? 1.0 : 0.15);
             });
 
-            // Set fallbacks for all expressions
-            colorExpression.push(statusColors['no-passport']);
-            patternExpression.push(null);
+            // Set fallback for the expression
+            patternExpression.push('solid-no-passport');
 
             // Apply all paint properties
-            passportMap.setPaintProperty(MAP_LAYER_ID, 'fill-color', colorExpression);
+            // Set a single transparent color and let the patterns handle everything.
+            passportMap.setPaintProperty(MAP_LAYER_ID, 'fill-color', 'rgba(0,0,0,0)');
             passportMap.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
 
             if (focusedLegend && (focusedLegend.type === 'passport' || focusedLegend.type === 'tie')) {
@@ -783,7 +785,13 @@
                 if (allVisaData['CN']) { allVisaData['CN']['HK'] = { ...specialPermitData }; allVisaData['CN']['MO'] = { ...specialPermitData }; }
                 sessionPassportColors = assignPassportColors(selectedPassports);
                 
-                // Pre-generate all necessary stripe patterns for the passport map
+                // Generate all patterns (solid and striped)
+                for (const code in sessionPassportColors) {
+                    addSolidPatternToMap(sessionPassportColors[code], `solid-${code}`);
+                }
+                addSolidPatternToMap(TIE_COLOR, 'solid-tie');
+                addSolidPatternToMap(statusColors['na'], 'solid-na');
+                addSolidPatternToMap(statusColors['no-passport'], 'solid-no-passport');
                 pregenerateAllPatterns();
                 
                 resetMapFocus();

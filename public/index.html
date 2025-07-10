@@ -9,8 +9,9 @@
 
   	gtag('config', 'G-DCD81Z7V4V');
     </script>
-	<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6081762145343306"
-     	crossorigin="anonymous"></script>
+	<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"
+     crossorigin="anonymous"
+     data-ad-client="ca-pub-6081762145343306"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Passport Picker - Visa-Free Travel Map</title>
@@ -370,7 +371,10 @@
         // --- CORE LOGIC ---
         function triggerAdSenseRefresh() {
     try {
-        (adsbygoogle = window.adsbygoogle || []).push({});
+        (adsbygoogle = window.adsbygoogle || []).push({
+            google_ad_client: "ca-pub-6081762145343306",
+            enable_page_level_ads: true
+        });
     } catch (e) {
         console.error("AdSense refresh error:", e);
     }

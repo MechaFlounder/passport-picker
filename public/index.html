@@ -177,7 +177,7 @@
                 <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </button>
         </div>
-	<div class="absolute top-4 left-4 z-10 flex space-x-2">
+	<div class="absolute top-4 left-4 z-10 flex flex-col space-y-2">
     <button id="back-to-landing-btn" class="bg-white text-gray-800 font-bold py-2 px-4 rounded-full shadow-lg hover:bg-gray-200 transition-colors duration-200 flex items-center">
         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
         Back
@@ -586,43 +586,35 @@
         
         // --- CORE LOGIC ---
 	async function generateShareImage() {
-    // Show a notification to the user
     showNotification('Generating share image...', 4000);
 
     const mapCanvas = map.getCanvas();
     const newCanvas = document.createElement('canvas');
     const ctx = newCanvas.getContext('2d');
-    
+    const padding = 20;
+
     // Set final canvas size
     newCanvas.width = mapCanvas.width;
     newCanvas.height = mapCanvas.height;
 
     // 1. Draw map screenshot as the background
     ctx.drawImage(mapCanvas, 0, 0);
+    
+    // Add a semi-transparent overlay at the top for the title and flags
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, newCanvas.width, 110);
 
-    // 2. Find and draw the active legend
-    const activeLegend = visaStatusLegend.style.display !== 'none' 
-        ? visaStatusLegend 
-        : bestPassportLegend;
+    // 2. Add the title based on the current view
+    const titleText = currentView === 'visa' 
+        ? "My Travel Freedom" 
+        : "Best Passport By Country";
+    
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 32px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(titleText, newCanvas.width / 2, padding + 28);
 
-    if (activeLegend.childElementCount > 0) {
-        const legendCanvas = await html2canvas(activeLegend, {
-            backgroundColor: null, // Use a transparent background
-            scale: window.devicePixelRatio // Use device resolution for sharpness
-        });
-        
-        // Position the legend at the bottom-center of the image
-        const legendX = (newCanvas.width - legendCanvas.width) / 2;
-        const legendY = newCanvas.height - legendCanvas.height - 20; // 20px from bottom
-
-        // Add a semi-transparent background behind the legend for readability
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.fillRect(legendX - 10, legendY - 10, legendCanvas.width + 20, legendCanvas.height + 20);
-        
-        ctx.drawImage(legendCanvas, legendX, legendY);
-    }
-
-    // 3. Load and draw passport flags
+    // 3. Load and draw passport flags below the title
     const flagPromises = selectedPassports.map(code => {
         return new Promise(resolve => {
             if (!flagImageData[code]) {
@@ -637,25 +629,40 @@
     });
 
     const flags = await Promise.all(flagPromises);
-    const flagSize = 60;
-    const padding = 15;
+    const flagSize = 40;
+    const totalFlagsWidth = (flags.length * flagSize) + ((flags.length - 1) * 5);
+    let startX = (newCanvas.width - totalFlagsWidth) / 2;
     
-    flags.forEach((flagImg, index) => {
+    flags.forEach((flagImg) => {
         if (flagImg) {
-            const x = padding + (index * (flagSize + 5)); // Position flags top-left
-            const y = padding;
-            // Draw a small border behind the flag
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-            ctx.fillRect(x - 3, y - 3, flagSize + 6, flagSize + 6);
-            ctx.drawImage(flagImg, x, y, flagSize, flagSize);
+            const y = padding + 45;
+            ctx.drawImage(flagImg, startX, y, flagSize, flagSize);
+            startX += flagSize + 5; // Move to the next flag position
         }
     });
+
+    // 4. Find and draw the active legend at the bottom
+    const activeLegend = visaStatusLegend.style.display !== 'none' 
+        ? visaStatusLegend 
+        : bestPassportLegend;
+
+    if (activeLegend.childElementCount > 0) {
+        const legendCanvas = await html2canvas(activeLegend, {
+            backgroundColor: null,
+            scale: window.devicePixelRatio 
+        });
+        
+        const legendX = (newCanvas.width - legendCanvas.width) / 2;
+        const legendY = newCanvas.height - legendCanvas.height - padding;
+
+        ctx.drawImage(legendCanvas, legendX, legendY);
+    }
     
-    // 4. Convert canvas to a sharable file
+    // 5. Convert canvas to a sharable file
     return new Promise(resolve => {
         newCanvas.toBlob(blob => {
             resolve(new File([blob], 'passport-map.png', { type: 'image/png' }));
-        }, 'image/png', 0.95); // Use high quality PNG
+        }, 'image/png', 0.95);
     });
 }
 
@@ -860,7 +867,7 @@ document.getElementById('share-map-btn').addEventListener('click', async () => {
             
             sortedGroups.forEach(group => {
                 const legendItem = document.createElement('div');
-                legendItem.className = 'legend-item text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                legendItem.className = 'legend-item flex items-center text-xs font-medium px-3 h-6 leading-6 rounded-full cursor-pointer transition-transform duration-200';
                 legendItem.style.backgroundColor = group.color;
                 legendItem.style.color = getContrastingTextColor(group.color);
                 legendItem.textContent = group.texts.join(' / ');
@@ -886,7 +893,7 @@ document.getElementById('share-map-btn').addEventListener('click', async () => {
             }
             passportsToConsider.forEach((passport) => {
                 const legendItem = document.createElement('div');
-                legendItem.className = 'legend-item flex items-center text-xs font-medium px-3 py-1 rounded-full cursor-pointer transition-transform duration-200';
+                legendItem.className = 'legend-item flex items-center text-xs font-medium px-3 h-6 leading-6 rounded-full cursor-pointer transition-transform duration-200';
                 legendItem.style.backgroundColor = sessionPassportColors[passport];
                 legendItem.style.color = getContrastingTextColor(sessionPassportColors[passport]);
                 legendItem.textContent = countryCodeToNameMap[passport] || passport;

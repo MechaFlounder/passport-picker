@@ -174,8 +174,8 @@
         </div>
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
             <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-full shadow-lg p-1 flex">
-                <button id="visa-view-btn" class="toggle-btn active text-sm font-semibold py-2 px-6 rounded-full">Visa Status</button>
-                <button id="passport-view-btn" class="toggle-btn text-sm font-semibold py-2 px-6 rounded-full">Best Passport</button>
+                <button id="visa-view-btn" class="toggle-btn text-sm font-semibold py-2 px-6 rounded-full">Visa Status</button>
+                <button id="passport-view-btn" class="toggle-btn active text-sm font-semibold py-2 px-6 rounded-full">Best Passport</button>
             </div>
         </div>
         <div class="absolute bottom-20 sm:bottom-4 inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-auto max-w-4xl pointer-events-auto">
@@ -213,7 +213,7 @@
         const notification = document.getElementById('notification');
         
         let allVisaData = {};
-        let currentView = 'visa';
+        let currentView = 'passport';
         let sessionPassportColors = {};
         let selectedPassports = [];
         let activePassports = []; // Passports currently toggled on for map view
@@ -226,7 +226,7 @@
         const statusPriority = { "citizen": 0, "fom": 1, "permit": 2, "vf": 3, "esta": 4, "eta": 4, "ev": 4, "voa": 5, "vr": 6, "denied": 7, "na": 8 };
         const statusText = { "citizen": "Citizen", "fom": "Freedom of Movement", "permit": "Travel Permit Required", "vf": "Visa Not Required", "voa": "Visa on Arrival", "esta": "ESTA", "eta": "eTA", "ev": "e-Visa / Online", "vr": "Visa Required", "denied": "Not Admitted", "na": "No Data" };
         const statusColors = { "citizen": "#8E44AD", "fom": "#81C784", "permit": "#3498DB", "vf": "#4CAF50", "voa": "#FFC107", "esta": "#2196F3", "eta": "#2196F3", "ev": "#2196F3", "vr": "#F44336", "denied": "#5D4037", "na": "#BDBDBD", "no-passport": "#E0E0E0" };
-        const TIE_COLOR = '#D7C3A3'; // New color for "All Equal" case
+        const TIE_COLOR = '#D8BFD8'; // New color for "All Equal" case
         const TIE_LEGEND_TEXT = 'All Equal';
         const countryColorPalette = {'US': { primary: '#0A3161', secondary: '#B31942' }, 'GB': { primary: '#CF142B', secondary: '#00247D' },'CA': { primary: '#FF0000', secondary: '#FFFFFF' }, 'AU': { primary: '#00008B', secondary: '#FFCD00' },'NZ': { primary: '#00247D', secondary: '#CF142B' }, 'DE': { primary: '#000000', secondary: '#FFCE00' },'FR': { primary: '#0055A4', secondary: '#EF4135' }, 'IT': { primary: '#009246', secondary: '#CE2B37' },'ES': { primary: '#C60B1E', secondary: '#FFC400' }, 'JP': { primary: '#BC002D', secondary: '#FFFFFF' },'CN': { primary: '#EE1C25', secondary: '#FFFF00' }, 'IN': { primary: '#FF9933', secondary: '#138808' },'BR': { primary: '#009B3A', secondary: '#FFDF00' }, 'RU': { primary: '#D52B1E', secondary: '#0039A6' },'ZA': { primary: '#007A4D', secondary: '#FFB612' }, 'IE': { primary: '#169B62', secondary: '#FF883E' },'CH': { primary: '#FF0000', secondary: '#FFFFFF' }, 'SE': { primary: '#006AA7', secondary: '#FFCD00' },'NO': { primary: '#EF2B2D', secondary: '#002868' }, 'KR': { primary: '#CD2E3A', secondary: '#0047A0' }};
         const countryAliases = {"US": ["usa", "america", "united states"],"GB": ["uk", "great britain", "england", "scotland", "wales", "britain"],"AE": ["uae"],"KR": ["south korea", "republic of korea"],"KP": ["north korea"],"RU": ["russia"],"CZ": ["czechia"],"CD": ["drc", "congo dem. rep."],"CG": ["congo"],"BS": ["the bahamas"],"DO": ["dr", "dominican rep."],"CF": ["car", "central african rep."],"ZA": ["sa"],"NZ": ["new zeland"]};

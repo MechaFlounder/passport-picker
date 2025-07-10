@@ -261,6 +261,8 @@
                 center: [0, 20],
                 zoom: 1.5,
                 projection: 'naturalEarth'
+		dragRotate: false, // Disables mouse rotation
+    		touchZoomRotate: false // Disables touch rotation and zoom
             });
             const popup = new mapboxgl.Popup({
                 closeButton: false,
@@ -630,7 +632,7 @@
             const colors = sortedCodes.map(code => sessionPassportColors[code]);
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const size = 64;
+            const size = 256;
             canvas.width = size; canvas.height = size;
             const stripeWidth = Math.max(2, 20 / colors.length);
             const step = stripeWidth;

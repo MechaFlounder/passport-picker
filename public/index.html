@@ -159,6 +159,8 @@
                      </button>
                  </div>
             </div>
+		<div id="ad-container" style="max-height: 100px; width: 100%; text-align: center; margin: 1rem auto;">
+    </div>
             <div class="w-full max-w-lg mx-auto mb-4 flex-shrink-0">
                 <input type="text" id="country-search" placeholder="Search for a country..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             </div>
@@ -369,6 +371,24 @@
         }
         
         // --- CORE LOGIC ---
+	function loadAd() {
+    try {
+        const adContainer = document.getElementById('ad-container');
+        if (adContainer && adContainer.innerHTML.trim() === '') {
+            adContainer.innerHTML = `
+                <ins class="adsbygoogle"
+                     style="display:block"
+                     data-ad-client="ca-pub-6081762145343306"
+                     data-ad-slot="3649588436"
+                     data-ad-format="auto"
+                     data-full-width-responsive="true"></ins>
+            `;
+            (adsbygoogle = window.adsbygoogle || []).push({});
+        }
+    } catch (e) {
+        console.error("AdSense loading error:", e);
+    }
+}
         function triggerAdSenseRefresh() {
     try {
         (adsbygoogle = window.adsbygoogle || []).push({
@@ -818,7 +838,6 @@
                 mapView.style.pointerEvents = 'auto';
                 
                 if (map) map.resize();
-		triggerAdSenseRefresh();
             } catch(error) {
                 console.error(error);
                 alert("Failed to load visa data from the server. See console for details.");
@@ -993,7 +1012,7 @@
             countrySearch.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const firstVisibleFlag = document.querySelector('.flag-item:not([style*="display: none"])'); if (firstVisibleFlag) { firstVisibleFlag.click(); } } });
             
             viewMapBtn.addEventListener('click', () => { activePassports = [...selectedPassports]; switchToMapView(); });
-            backToLandingBtn.addEventListener('click', () => { mapView.style.opacity = '0'; mapView.style.pointerEvents = 'none'; landingPage.style.opacity = '1'; landingPage.style.pointerEvents = 'auto'; triggerAdSenseRefresh(); });
+            backToLandingBtn.addEventListener('click', () => { mapView.style.opacity = '0'; mapView.style.pointerEvents = 'none'; landingPage.style.opacity = '1'; landingPage.style.pointerEvents = 'auto'; loadAd(); });
             
             visaViewBtn.addEventListener('click', () => {
                  currentView = 'visa';
@@ -1030,6 +1049,7 @@
                 alert("Could not initialize the map. A Mapbox token is required. Please check the backend configuration.");
                 loaderText.textContent = 'Error loading map.';
             }
+		loadAd();
         }
         initialize();
     </script>

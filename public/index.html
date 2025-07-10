@@ -739,20 +739,38 @@
         }
 
         async function switchToMapView() {
-            if (selectedPassports.length === 0) return;
-            loaderText.textContent = 'Loading Visa Data...';
-            loader.style.display = 'flex';
-            await new Promise(resolve => setTimeout(resolve, 10));
-            loader.style.opacity = '1';
-            loader.style.pointerEvents = 'auto';
-            try {
-                const response = await fetch('/api/visa-data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ passports: selectedPassports })
-                });
-                if (!response.ok) throw new Error(`Could not fetch visa data from server: ${response.statusText}`);
-                allVisaData = await response.json();
+    if (selectedPassports.length === 0) return;
+
+    // --- New Tip Logic ---
+    const tips = [
+        "Try selecting legend items to emphasize them on the map.",
+        "Select and deselect flags on the map to see what each passport contributes.",
+	"Switch to the 'Visa Status' view to see your overall travel freedom",
+        "Switch to the 'Best Passport' view to see which of your passports is optimal for each country."
+    ];
+    const randomTip = tips[Math.floor(Math.random() * tips.length)];
+    loaderText.innerHTML = `Loading Visa Data...<br><span class="text-base font-normal text-gray-600 mt-2 block">Tip: ${randomTip}</span>`;
+    // --- End Tip Logic ---
+
+    loader.style.display = 'flex';
+    await new Promise(resolve => setTimeout(resolve, 10));
+    loader.style.opacity = '1';
+    loader.style.pointerEvents = 'auto';
+
+    try {
+        // --- New Minimum Display Time Logic ---
+        const minDisplayTime = new Promise(resolve => setTimeout(resolve, 2500)); // 2.5 seconds
+        const fetchVisaData = fetch('/api/visa-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ passports: selectedPassports })
+        });
+
+        const [_, response] = await Promise.all([minDisplayTime, fetchVisaData]);
+        // --- End Minimum Display Time Logic ---
+
+        if (!response.ok) throw new Error(`Could not fetch visa data from server: ${response.statusText}`);
+        allVisaData = await response.json();
                 
                 const specialPermitData = { status: 'permit', stay: Infinity, visa: 'Travel Permit Required' };
                 if (allVisaData['HK']) allVisaData['HK']['CN'] = { ...specialPermitData };

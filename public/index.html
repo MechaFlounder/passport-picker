@@ -177,8 +177,8 @@
         </div>
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
             <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-full shadow-lg p-1 flex">
-                <button id="visa-view-btn" class="toggle-btn text-sm font-semibold py-2 px-6 rounded-full">Visa Status</button>
-                <button id="passport-view-btn" class="toggle-btn active text-sm font-semibold py-2 px-6 rounded-full">Best Passport</button>
+                <button id="visa-view-btn" class="toggle-btn active text-sm font-semibold py-2 px-6 rounded-full">Visa Status</button>
+                <button id="passport-view-btn" class="toggle-btn text-sm font-semibold py-2 px-6 rounded-full">Best Passport</button>
             </div>
         </div>
         <div class="absolute bottom-20 sm:bottom-4 inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-auto max-w-4xl pointer-events-auto">
@@ -216,7 +216,7 @@
         const notification = document.getElementById('notification');
         
         let allVisaData = {};
-        let currentView = 'passport';
+        let currentView = 'visa';
         let sessionPassportColors = {};
         let selectedPassports = [];
         let activePassports = []; // Passports currently toggled on for map view

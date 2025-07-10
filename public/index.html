@@ -175,6 +175,16 @@
                 <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </button>
         </div>
+	<div class="absolute top-4 left-4 z-10 flex space-x-2">
+    <button id="back-to-landing-btn" class="bg-white text-gray-800 font-bold py-2 px-4 rounded-full shadow-lg hover:bg-gray-200 transition-colors duration-200 flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        Back
+    </button>
+    <button id="share-map-btn" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-full shadow-lg hover:bg-blue-600 transition-colors duration-200 flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path></svg>
+        Share
+    </button>
+</div>
         <div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
             <div class="bg-white bg-opacity-90 backdrop-blur-sm rounded-full shadow-lg p-1 flex">
                 <button id="visa-view-btn" class="toggle-btn active text-sm font-semibold py-2 px-6 rounded-full">Visa Status</button>
@@ -264,7 +274,8 @@
                 center: [0, 20],
                 zoom: 1.5,
                 projection: 'naturalEarth',
-		dragRotate: false // Disables mouse rotation
+		dragRotate: false, // Disables mouse rotation
+		preserveDrawingBuffer: true
             });
 		map.touchZoomRotate.disableRotation();
             const popup = new mapboxgl.Popup({
@@ -371,6 +382,79 @@
         }
         
         // --- CORE LOGIC ---
+	async function generateShareImage() {
+    const mapCanvas = map.getCanvas();
+    const newCanvas = document.createElement('canvas');
+    const ctx = newCanvas.getContext('2d');
+    const flagSize = 80;
+    const padding = 10;
+
+    // Set canvas size
+    newCanvas.width = mapCanvas.width;
+    newCanvas.height = mapCanvas.height;
+
+    // Draw map screenshot as the background
+    ctx.drawImage(mapCanvas, 0, 0);
+
+    // Load and draw passport flags
+    const flagPromises = selectedPassports.map(code => {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.crossOrigin = "Anonymous"; // Important for loading images
+            img.src = countryData.find(c => c.code === code).flag;
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null); // Continue if an image fails
+        });
+    });
+
+    const flags = await Promise.all(flagPromises);
+    flags.forEach((flagImg, index) => {
+        if (flagImg) {
+            const x = padding + (index * (flagSize + padding));
+            const y = newCanvas.height - flagSize - padding;
+            ctx.drawImage(flagImg, x, y, flagSize, flagSize);
+        }
+    });
+    
+    // Convert canvas to a sharable file
+    return new Promise(resolve => {
+        newCanvas.toBlob(blob => {
+            resolve(new File([blob], 'passport-map.png', { type: 'image/png' }));
+        }, 'image/png');
+    });
+}
+
+document.getElementById('share-map-btn').addEventListener('click', async () => {
+    if (!navigator.share) {
+        alert("Your browser doesn't support the Share API. Try sharing from a mobile device!");
+        return;
+    }
+
+    const shareButton = document.getElementById('share-map-btn');
+    shareButton.disabled = true;
+    shareButton.textContent = 'Generating...';
+
+    try {
+        const imageFile = await generateShareImage();
+        
+        await navigator.share({
+            title: 'My Passport Power',
+            text: "Here's where my passports can take me! See your travel options on Passport Picker:",
+            url: window.location.href,
+            files: [imageFile],
+        });
+
+    } catch (error) {
+        console.error('Error sharing:', error);
+        if (error.name !== 'AbortError') { // Don't alert if user cancels share
+            alert('Something went wrong while trying to share.');
+        }
+    } finally {
+        shareButton.disabled = false;
+        shareButton.innerHTML = '<svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path></svg>Share';
+    }
+});
+
 	function loadAd() {
     try {
         const adContainer = document.getElementById('ad-container');

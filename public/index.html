@@ -818,6 +818,7 @@
                 mapView.style.pointerEvents = 'auto';
                 
                 if (map) map.resize();
+		triggerAdSenseRefresh();
             } catch(error) {
                 console.error(error);
                 alert("Failed to load visa data from the server. See console for details.");

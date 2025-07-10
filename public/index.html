@@ -126,6 +126,8 @@
             margin-top: -2px; /* Center the line */
         }
     </style>
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-DCD81Z7V4V"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script> <meta charset="UTF-8">
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased overflow-hidden">
     <div id="notification" class="fixed top-5 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg opacity-0 transition-all duration-300 pointer-events-none z-[11000] transform -translate-y-20">
@@ -584,54 +586,76 @@
         
         // --- CORE LOGIC ---
 	async function generateShareImage() {
+    // Show a notification to the user
+    showNotification('Generating share image...', 4000);
+
     const mapCanvas = map.getCanvas();
     const newCanvas = document.createElement('canvas');
     const ctx = newCanvas.getContext('2d');
-    const flagSize = 80;
-    const padding = 10;
-
-    // Set canvas size
+    
+    // Set final canvas size
     newCanvas.width = mapCanvas.width;
     newCanvas.height = mapCanvas.height;
 
-    // Draw map screenshot as the background
+    // 1. Draw map screenshot as the background
     ctx.drawImage(mapCanvas, 0, 0);
 
-    // --- UPDATED FLAG LOADING LOGIC ---
+    // 2. Find and draw the active legend
+    const activeLegend = visaStatusLegend.style.display !== 'none' 
+        ? visaStatusLegend 
+        : bestPassportLegend;
+
+    if (activeLegend.childElementCount > 0) {
+        const legendCanvas = await html2canvas(activeLegend, {
+            backgroundColor: null, // Use a transparent background
+            scale: window.devicePixelRatio // Use device resolution for sharpness
+        });
+        
+        // Position the legend at the bottom-center of the image
+        const legendX = (newCanvas.width - legendCanvas.width) / 2;
+        const legendY = newCanvas.height - legendCanvas.height - 20; // 20px from bottom
+
+        // Add a semi-transparent background behind the legend for readability
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fillRect(legendX - 10, legendY - 10, legendCanvas.width + 20, legendCanvas.height + 20);
+        
+        ctx.drawImage(legendCanvas, legendX, legendY);
+    }
+
+    // 3. Load and draw passport flags
     const flagPromises = selectedPassports.map(code => {
         return new Promise(resolve => {
-            // Check if the flag data exists
             if (!flagImageData[code]) {
                 resolve(null);
                 return;
             }
             const img = new Image();
-            // Use the Base64 data URI from our new object
             img.src = flagImageData[code];
-            
             img.onload = () => resolve(img);
-            img.onerror = () => resolve(null); // Continue if an image fails
+            img.onerror = () => resolve(null);
         });
     });
 
     const flags = await Promise.all(flagPromises);
+    const flagSize = 60;
+    const padding = 15;
+    
     flags.forEach((flagImg, index) => {
         if (flagImg) {
-            const x = padding + (index * (flagSize + padding));
-            const y = newCanvas.height - flagSize - padding;
-            // Draw a small white border behind the flag for better visibility
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            const x = padding + (index * (flagSize + 5)); // Position flags top-left
+            const y = padding;
+            // Draw a small border behind the flag
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
             ctx.fillRect(x - 3, y - 3, flagSize + 6, flagSize + 6);
             ctx.drawImage(flagImg, x, y, flagSize, flagSize);
         }
     });
-    // --- END OF UPDATED LOGIC ---
     
-    // Convert canvas to a sharable file
+    // 4. Convert canvas to a sharable file
     return new Promise(resolve => {
         newCanvas.toBlob(blob => {
             resolve(new File([blob], 'passport-map.png', { type: 'image/png' }));
-        }, 'image/png');
+        }, 'image/png', 0.95); // Use high quality PNG
     });
 }
 

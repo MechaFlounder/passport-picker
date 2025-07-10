@@ -691,32 +691,38 @@
                 const condition = ['==', ['get', 'iso_3166_1'], countryCode];
                 let isHighlighted = true; // Default to fully visible
 
-                // Determine if the country should be dimmed based on legend focus
                 if (focusedLegend && (focusedLegend.type === 'passport' || focusedLegend.type === 'tie')) {
                     if (focusedLegend.type === 'tie') {
                         isHighlighted = result.allPassportsTie;
-                    } else { // type is 'passport'
+                    } else { 
                         isHighlighted = result.tyingPassports.some(p => focusedLegend.value.includes(p));
                     }
                 }
 
-                // Assign color or pattern based on the visa result
-                if (result.tyingPassports.length > 1 && !result.allPassportsTie) {
-                    // --- PARTIAL TIE ---
+                // Assign color or pattern based on the visa result, with specific checks
+                if (result.status === 'na') {
+                    // Case 1: No data available for this country.
+                    colorExpression.push(condition, statusColors['na']);
+                    patternExpression.push(condition, '');
+                } else if (result.tyingPassports.length > 1 && !result.allPassportsTie) {
+                    // Case 2: Partial Tie (Stripes)
                     const patternId = `stripes-${[...result.tyingPassports].sort().join('-')}`;
-                    colorExpression.push(condition, 'rgba(0,0,0,0)'); // IMPORTANT: Use transparent color for pattern to show
+                    colorExpression.push(condition, 'rgba(0,0,0,0)');
                     patternExpression.push(condition, patternId);
                 } else if (result.allPassportsTie) {
-                    // --- ALL EQUAL TIE ---
+                    // Case 3: All Passports are Equal
                     colorExpression.push(condition, TIE_COLOR);
-                    patternExpression.push(condition, ''); // No pattern
+                    patternExpression.push(condition, '');
                 } else if (result.tyingPassports.length === 1 && result.tyingPassports[0]) {
-                    // --- CLEAR WINNER ---
+                    // Case 4: Clear Winner
                     colorExpression.push(condition, sessionPassportColors[result.tyingPassports[0]]);
-                    patternExpression.push(condition, ''); // No pattern
+                    patternExpression.push(condition, '');
+                } else {
+                    // Fallback for any other unhandled case
+                    colorExpression.push(condition, statusColors['no-passport']);
+                    patternExpression.push(condition, '');
                 }
 
-                // Set opacity for the highlighting effect
                 fillOpacityExpression.push(condition, isHighlighted ? 1.0 : 0.2);
             });
 
@@ -730,7 +736,6 @@
             passportMap.setPaintProperty(MAP_LAYER_ID, 'fill-pattern', patternExpression);
             passportMap.setPaintProperty(MAP_LAYER_ID, 'fill-opacity', fillOpacityExpression);
             
-            // Also dim disputed territories when a legend item is focused
             const disputedOpacity = (focusedLegend && (focusedLegend.type === 'passport' || focusedLegend.type === 'tie')) ? 0.2 : 1.0;
             passportMap.setPaintProperty(DISPUTED_LAYER_ID, 'fill-opacity', disputedOpacity);
         }

@@ -751,7 +751,7 @@
     const randomTip = tips[Math.floor(Math.random() * tips.length)];
     loaderText.innerHTML = `
     Loading Visa Data...
-    <div class="mt-4 p-4 bg-blue-100 border border-blue-200 rounded-lg max-w-sm mx-auto text-left shadow-sm">
+    <div class="mt-4 p-4 bg-blue-200 border border-blue-300 rounded-lg max-w-sm mx-auto text-left shadow-md">
         <p class="text-lg text-gray-800">
             <span class="font-bold block mb-1">Tip:</span>
             ${randomTip}
@@ -766,7 +766,7 @@
 
     try {
         // --- New Minimum Display Time Logic ---
-        const minDisplayTime = new Promise(resolve => setTimeout(resolve, 2500)); // 2.5 seconds
+        const minDisplayTime = new Promise(resolve => setTimeout(resolve, 3500)); // 2.5 seconds
         const fetchVisaData = fetch('/api/visa-data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -630,7 +630,7 @@
             const colors = sortedCodes.map(code => sessionPassportColors[code]);
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const size = 20;
+            const size = 64;
             canvas.width = size; canvas.height = size;
             const stripeWidth = Math.max(2, size / colors.length);
             const step = stripeWidth;

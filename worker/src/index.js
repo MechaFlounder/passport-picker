@@ -11,7 +11,7 @@
  *   1. pulls the upstream matrix (with fallbacks, because a single raw URL is a
  *      single point of failure),
  *   2. normalises it through the same parser the browser uses,
- *   3. applies data/overrides.json,
+ *   3. applies public/data/overrides.json,
  *   4. refuses to publish anything that fails the sanity gate,
  *   5. writes per-passport files, a manifest and a dated changelog to R2.
  *
@@ -28,7 +28,7 @@
 import { parseStatus, parseStay, STATUS_IDS } from '../../public/js/statuses.js';
 import { indexOverrides } from '../../public/js/visa.js';
 
-import overridesDoc from '../../data/overrides.json' with { type: 'json' };
+import overridesDoc from '../../public/data/overrides.json' with { type: 'json' };
 import { syncBoundaries, BOUNDARY_META_KEY } from './boundaries.js';
 
 /**

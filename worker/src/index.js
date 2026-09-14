@@ -29,6 +29,7 @@ import { parseStatus, parseStay, STATUS_IDS } from '../../public/js/statuses.js'
 import { indexOverrides } from '../../public/js/visa.js';
 
 import overridesDoc from '../../data/overrides.json' with { type: 'json' };
+import { syncBoundaries, BOUNDARY_META_KEY } from './boundaries.js';
 
 /**
  * Candidate sources, tried in order.
@@ -443,10 +444,16 @@ export default {
       const ageMs = Date.now() - Date.parse(parsed.updated);
       const ageDays = Math.floor(ageMs / 86400000);
 
+      const boundaryMeta = await env.VISA_DATA_BUCKET.get(BOUNDARY_META_KEY);
+      const boundaries = boundaryMeta ? await boundaryMeta.json() : null;
+
       return json({
         ok: true,
         updated: parsed.updated,
         ageDays,
+        boundaries: boundaries
+          ? { version: boundaries.version, features: boundaries.features, bytes: boundaries.bytes }
+          : null,
         // The cron silently stopping is a documented Cloudflare failure mode,
         // so say plainly when the data has gone stale rather than only
         // reporting a timestamp nobody reads.
@@ -457,14 +464,15 @@ export default {
       });
     }
 
-    if (url.pathname === '/sync') {
-      if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
-
+    const authorised = () => {
       const auth = request.headers.get('authorization') ?? '';
       const token = auth.startsWith('Bearer ') ? auth.slice(7) : url.searchParams.get('key');
-      if (!env.SYNC_SECRET || token !== env.SYNC_SECRET) {
-        return json({ error: 'unauthorised' }, 401);
-      }
+      return Boolean(env.SYNC_SECRET) && token === env.SYNC_SECRET;
+    };
+
+    if (url.pathname === '/sync') {
+      if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
+      if (!authorised()) return json({ error: 'unauthorised' }, 401);
 
       const result = await runSync(env, {
         dryRun: url.searchParams.get('dry') === '1',
@@ -473,6 +481,20 @@ export default {
       return json(result, result.ok ? 200 : 500);
     }
 
-    return json({ error: 'not found', endpoints: ['/status', 'POST /sync'] }, 404);
+    if (url.pathname === '/boundaries') {
+      if (request.method !== 'POST') return json({ error: 'POST required' }, 405);
+      if (!authorised()) return json({ error: 'unauthorised' }, 401);
+
+      const result = await syncBoundaries(env, {
+        force: url.searchParams.get('force') === '1',
+        dryRun: url.searchParams.get('dry') === '1',
+      });
+      return json(result, result.ok ? 200 : 500);
+    }
+
+    return json({
+      error: 'not found',
+      endpoints: ['GET /status', 'POST /sync', 'POST /boundaries'],
+    }, 404);
   },
 };

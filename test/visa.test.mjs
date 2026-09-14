@@ -16,7 +16,7 @@ import { UNLIMITED } from '../public/js/statuses.js';
 
 const root = path.join(import.meta.dirname, '..');
 const meta = JSON.parse(fs.readFileSync(path.join(root, 'public/data/countries.json'), 'utf8'));
-const overridesDoc = JSON.parse(fs.readFileSync(path.join(root, 'data/overrides.json'), 'utf8'));
+const overridesDoc = JSON.parse(fs.readFileSync(path.join(root, 'public/data/overrides.json'), 'utf8'));
 
 /** Compact feed shape, as written by the sync Worker. */
 const cell = (s, d = null) => ({ s, d });

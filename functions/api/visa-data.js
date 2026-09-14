@@ -94,10 +94,7 @@ export function toLegacyShape(destinations, passport) {
 
   const out = {};
   for (const [code, cell] of Object.entries(destinations ?? {})) {
-    if (passport && code === passport) {
-      out[code] = { status: 'citizen', stay: 0, visa: 'Citizen' };
-      continue;
-    }
+    if (passport && code === passport) continue; // handled below
 
     if (passport && sharesBloc(passport, code)) {
       out[code] = { status: 'fom', stay: 0, visa: 'Freedom of movement' };
@@ -110,6 +107,15 @@ export function toLegacyShape(destinations, passport) {
       visa: cell.l ?? undefined,
     };
   }
+
+  // Added unconditionally, not inside the loop: the upstream feed carries no
+  // self-cells at all — there is simply no "US → US" row to iterate over — so a
+  // check that only fires on an existing key never fires. Without this, your own
+  // country renders grey as "No Data" instead of purple as "Citizen".
+  if (passport) {
+    out[passport] = { status: 'citizen', stay: 0, visa: 'Citizen' };
+  }
+
   return out;
 }
 

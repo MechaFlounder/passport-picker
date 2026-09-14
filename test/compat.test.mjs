@@ -78,10 +78,23 @@ test('the shim restores freedom of movement the feed does not carry', async (t) 
     assert.notEqual(toLegacyShape({ FR: { s: 'vf' } }, 'US').FR.status, 'fom');
   });
 
-  await t.test('the self-cell reads as citizenship', () => {
-    // The upstream feed has no self-cells at all, so without this the old page
-    // would colour your own country as "no data".
-    assert.equal(toLegacyShape({ US: { s: 'unknown' } }, 'US').US.status, 'citizen');
+  await t.test('your own country reads as citizenship even though the feed omits it', () => {
+    // This test previously supplied a US key and passed while production broke.
+    // The real feed has no self-cells *at all* — there is no "US → US" row to
+    // iterate over — so the input here deliberately contains no US key, which
+    // is what the endpoint actually receives.
+    const realistic = { FR: { s: 'vf', d: 90 }, GB: { s: 'eta', d: 180 } };
+    assert.ok(!('US' in realistic), 'the fixture must mirror the feed, which omits self-cells');
+
+    const out = toLegacyShape(realistic, 'US');
+    assert.equal(out.US.status, 'citizen');
+    assert.equal(out.US.visa, 'Citizen');
+  });
+
+  await t.test('every passport gets a self-cell, whatever the feed sent', () => {
+    for (const p of ['DE', 'IE', 'JP', 'BR']) {
+      assert.equal(toLegacyShape({ FR: { s: 'vf' } }, p)[p]?.status, 'citizen', p);
+    }
   });
 
   await t.test('omitting the passport leaves the old behaviour untouched', () => {

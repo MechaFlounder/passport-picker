@@ -1,0 +1,34 @@
+name = "passport-picker-sync"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Weekly, Monday 03:17 UTC. An odd minute on purpose: the top of the hour is the
+# busiest slot on Cloudflare's scheduler and the most likely to be delayed.
+#
+# This is a Worker, not a Pages project. The previous attempt put `crons` in a
+# Pages wrangler.toml and exported `onScheduled` from a Pages Function, which is
+# not a thing Pages supports — so it never ran, not once, and the data went
+# fourteen months without a refresh.
+[triggers]
+crons = ["17 3 * * 1"]
+
+[[r2_buckets]]
+binding = "VISA_DATA_BUCKET"
+bucket_name = "passport-picker-data"
+
+[observability]
+enabled = true
+
+# Secrets are set out of band, never committed:
+#   npx wrangler secret put SYNC_SECRET --name passport-picker-sync
+#
+# Deploy:
+#   cd worker && npx wrangler deploy
+#
+# First run (populates the bucket; there is no previous version to diff against):
+#   curl -X POST -H "Authorization: Bearer $SYNC_SECRET" \
+#     https://passport-picker-sync.<subdomain>.workers.dev/sync
+#
+# Preview what a run would change, without publishing:
+#   curl -X POST -H "Authorization: Bearer $SYNC_SECRET" \
+#     "https://passport-picker-sync.<subdomain>.workers.dev/sync?dry=1"

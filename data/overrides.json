@@ -1,0 +1,86 @@
+{
+  "$comment": "Hand-curated corrections applied on top of the synced dataset. This file is the escape hatch: anything the upstream feed gets wrong, or does not model at all, is fixed here rather than in code. Rules are applied after normalisation and before resolution, and they outrank everything including citizenship. Specificity wins: an exact passport+destination rule beats a wildcard. Every rule carries a source and a checked date so the file stays auditable — if you cannot cite it, do not add it.",
+  "$schema": {
+    "passport": "ISO-2, or \"*\" for every passport",
+    "destination": "ISO-2, or \"*\" for every destination",
+    "status": "one of the ids in public/js/statuses.js",
+    "stay": "days, or null when not stated",
+    "label": "short phrase shown in the popup",
+    "note": "one sentence of context, shown under the label",
+    "source": "URL backing the rule",
+    "checked": "ISO date this was last verified against the source",
+    "effectiveFrom": "optional ISO date; the rule is ignored until then",
+    "reason": "why upstream is not enough"
+  },
+  "version": 1,
+  "updated": "2026-09-12",
+  "rules": [
+    {
+      "passport": "HK",
+      "destination": "CN",
+      "status": "permit",
+      "stay": null,
+      "label": "Home Return Permit",
+      "note": "Hong Kong residents travel to the mainland on a Home Return Permit, not on a passport and not on a visa.",
+      "reason": "Movement within one country is not a visa relationship, so no visa dataset models it. The old site patched this into the response at runtime in switchToMapView().",
+      "source": "https://www.immd.gov.hk/eng/services/travel_document.html",
+      "checked": "2026-09-12"
+    },
+    {
+      "passport": "MO",
+      "destination": "CN",
+      "status": "permit",
+      "stay": null,
+      "label": "Home Return Permit",
+      "note": "Macau residents travel to the mainland on a Home Return Permit, not on a passport and not on a visa.",
+      "reason": "Same as Hong Kong — an internal travel document, not a visa.",
+      "source": "https://www.gov.mo/en/services/ps-1494/",
+      "checked": "2026-09-12"
+    },
+    {
+      "passport": "CN",
+      "destination": "HK",
+      "status": "permit",
+      "stay": null,
+      "label": "Exit-Entry Permit",
+      "note": "Mainland residents need an Exit-Entry Permit with a Hong Kong endorsement; the permit is issued by the mainland, not by Hong Kong.",
+      "reason": "The feed carries this as the literal string ' Exit-Entry Permit' — with a leading space that made the old parser miss it entirely.",
+      "source": "https://www.immd.gov.hk/eng/services/visas/visit-transit/visit-visa-entry-permit.html",
+      "checked": "2026-09-12"
+    },
+    {
+      "passport": "CN",
+      "destination": "MO",
+      "status": "permit",
+      "stay": null,
+      "label": "Exit-Entry Permit",
+      "note": "Mainland residents need an Exit-Entry Permit with a Macau endorsement.",
+      "reason": "Same as Hong Kong.",
+      "source": "https://www.gov.mo/en/services/ps-1498/",
+      "checked": "2026-09-12"
+    },
+    {
+      "passport": "US",
+      "destination": "KP",
+      "status": "banned",
+      "stay": null,
+      "label": "US passports not valid for travel",
+      "note": "A US passport is invalid for travel to, in or through North Korea unless specially validated by the State Department. The restriction has been renewed every year since 2017 and currently runs to 31 August 2027.",
+      "reason": "This is a restriction the United States places on its own passports, not a rule North Korea sets — so it appears in no visa dataset, which will happily report that North Korea issues Americans a tourist visa.",
+      "source": "https://www.federalregister.gov/documents/2025/05/14/2025-08511/united-states-passports-invalid-for-travel-to-in-or-through-the-democratic-peoples-republic-of-korea",
+      "checked": "2026-09-12"
+    },
+    {
+      "passport": "*",
+      "destination": "EU-ETIAS-PLACEHOLDER",
+      "status": "eta",
+      "stay": null,
+      "label": "ETIAS",
+      "note": "Not yet in force. When ETIAS launches, change the destination of this rule to each Schengen state — or delete it, if the upstream feed has caught up by then.",
+      "reason": "ETIAS was still not live as of September 2026; the EU expects a launch in the last quarter of 2026, followed by a six-month transitional period during which travel without an authorisation is still permitted. Kept here, inert, so switching it on is a data edit rather than a code change.",
+      "source": "https://www.fragomen.com/insights/european-union-european-travel-information-and-authorisation-system-etias-launch-delayed.html",
+      "checked": "2026-09-12",
+      "effectiveFrom": "2027-06-01"
+    }
+  ]
+}

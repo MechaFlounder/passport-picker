@@ -1,0 +1,19 @@
+{
+  "name": "passport-picker",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "passportpicker.com — visa requirements for every passport you hold, on one map.",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "test:watch": "node --test --watch \"test/*.test.mjs\"",
+    "build:countries": "node scripts/build-countries.mjs",
+    "check:coverage": "node scripts/coverage-check.mjs",
+    "diff:data": "node scripts/diff-normalisation.mjs",
+    "deploy:worker": "cd worker && npx wrangler deploy",
+    "logs:worker": "cd worker && npx wrangler tail"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

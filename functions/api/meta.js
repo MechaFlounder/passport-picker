@@ -13,6 +13,16 @@ const STALE_AFTER_DAYS = 14;
 export async function onRequestGet(context) {
   const { env } = context;
 
+  // Pages keeps Production and Preview configuration separate, so a binding
+  // that exists in one is routinely missing from the other.
+  if (!env.VISA_DATA_BUCKET) {
+    return json({
+      ok: false,
+      error: 'R2 binding VISA_DATA_BUCKET is not configured for this environment',
+      fix: 'Pages → Settings → Bindings → add VISA_DATA_BUCKET for Preview as well as Production, then redeploy',
+    }, 503, 0);
+  }
+
   const manifest = await env.VISA_DATA_BUCKET.get('v2/manifest.json');
   if (!manifest) {
     return json({ ok: false, error: 'no data has been published yet' }, 503, 60);

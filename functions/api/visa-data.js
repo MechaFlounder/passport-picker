@@ -13,6 +13,15 @@
 export async function onRequestPost(context) {
   const { request, env } = context;
 
+  // Pages keeps Production and Preview configuration separate, so a binding
+  // that exists in one is routinely missing from the other.
+  if (!env.VISA_DATA_BUCKET) {
+    return json({
+      error: 'R2 binding VISA_DATA_BUCKET is not configured for this environment',
+      fix: 'Pages → Settings → Bindings → add VISA_DATA_BUCKET for Preview as well as Production, then redeploy',
+    }, 503);
+  }
+
   let passports;
   try {
     ({ passports } = await request.json());

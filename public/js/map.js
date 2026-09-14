@@ -57,6 +57,27 @@ function whenReady(timeoutMs = 15000) {
 }
 
 /**
+ * Line segments for a seamless 45° hatch on a `size`×`size` tile.
+ *
+ * Separated from the drawing so it can be tested. The first version of this
+ * ran its diagonals from (-size, size) to (size, -size), which on an 8×8 tile
+ * clips only the very corner — the resulting texture had 2 of 64 pixels with
+ * any alpha in them, so tied countries rendered with no hatch at all and
+ * nothing anywhere reported a problem.
+ *
+ * @returns {Array<[number, number, number, number]>} [x1, y1, x2, y2]
+ */
+export function hatchSegments(size = 8) {
+  return [
+    // The main diagonal, corner to corner.
+    [0, size, size, 0],
+    // The two fragments that let it tile seamlessly.
+    [-1, 1, 1, -1],
+    [size - 1, size + 1, size + 1, size - 1],
+  ];
+}
+
+/**
  * A diagonal hatch, drawn once and reused for every tied country.
  *
  * Transparent between the strokes so the winner's colour reads through: the
@@ -70,14 +91,15 @@ function hatchImage(size = 8) {
 
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
   ctx.lineWidth = 1.6;
-  ctx.lineCap = 'square';
+  ctx.lineCap = 'round';
 
-  // Two strokes, offset by the tile size, so the pattern joins up when repeated.
   ctx.beginPath();
-  ctx.moveTo(-size, size); ctx.lineTo(size, -size);
-  ctx.moveTo(0, size * 2); ctx.lineTo(size * 2, 0);
+  for (const [x1, y1, x2, y2] of hatchSegments(size)) {
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+  }
   ctx.stroke();
 
   return ctx.getImageData(0, 0, size, size);
@@ -100,16 +122,20 @@ export async function createMap({ container, boundariesUrl, describe, onCountryC
       version: 8,
       name: 'Passport Picker',
       sources: {},
+      // No `glyphs` key at all. MapLibre validates the property when it is
+      // present, so `glyphs: undefined` is rejected outright rather than
+      // treated as absent — and there are no text layers here to need fonts.
       layers: [{ id: LAYER.background, type: 'background', paint: { 'background-color': OCEAN } }],
-      glyphs: undefined,
     },
     center: [10, 25],
     zoom: 1.3,
     minZoom: 0.6,
     maxZoom: 7,
-    // Mercator stretches the poles badly; clipping the extreme latitudes keeps
-    // Antarctica from dominating a map that is about countries people visit.
-    maxBounds: [[-200, -62], [200, 84]],
+    // No maxBounds. An earlier attempt at one used longitudes beyond ±180 to
+    // leave slack at the edges; MapLibre could not make sense of that and threw
+    // the camera to [180, 40] at zoom 4, where the only countries on screen
+    // were the two that cross the antimeridian. Mercator's polar stretch is
+    // better lived with than fenced off.
     dragRotate: false,
     pitchWithRotate: false,
     touchZoomRotate: true,

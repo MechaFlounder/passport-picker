@@ -21,6 +21,7 @@
  */
 
 import { STATUS_BY_ID, NO_SELECTION_COLOR } from './statuses.js';
+import { warpGeoJson, WARPED_BOUNDS } from './projection.js';
 
 const SOURCE = 'countries';
 const LAYER = {
@@ -127,15 +128,18 @@ export async function createMap({ container, boundariesUrl, describe, onCountryC
       // treated as absent — and there are no text layers here to need fonts.
       layers: [{ id: LAYER.background, type: 'background', paint: { 'background-color': OCEAN } }],
     },
-    center: [10, 25],
-    zoom: 1.3,
-    minZoom: 0.6,
+    center: [0, 0],
+    zoom: 1,
+    minZoom: 0,
     maxZoom: 7,
-    // No maxBounds. An earlier attempt at one used longitudes beyond ±180 to
-    // leave slack at the edges; MapLibre could not make sense of that and threw
-    // the camera to [180, 40] at zoom 4, where the only countries on screen
-    // were the two that cross the antimeridian. Mercator's polar stretch is
-    // better lived with than fenced off.
+    // The geometry is pre-warped into Natural Earth (see projection.js), which
+    // means two things must hold. The warped world is not a repeating cylinder,
+    // so world copies would tile a projection that does not tile; and a
+    // maxBounds in degrees would be meaningless, because degrees no longer mean
+    // degrees. An earlier attempt at one used longitudes beyond ±180 and threw
+    // the camera to [180, 40] at zoom 4, where the only countries on screen were
+    // the two that cross the antimeridian.
+    renderWorldCopies: false,
     dragRotate: false,
     pitchWithRotate: false,
     touchZoomRotate: true,
@@ -164,7 +168,9 @@ export async function createMap({ container, boundariesUrl, describe, onCountryC
     const detail = await response.json().catch(() => ({}));
     throw new Error(detail.error ?? `boundaries returned ${response.status}`);
   }
-  const boundaries = await response.json();
+  // Stored in real coordinates; warped here so the file in R2 stays ordinary
+  // GeoJSON and changing projection never means re-running the sync.
+  const boundaries = warpGeoJson(await response.json());
 
   map.addSource(SOURCE, {
     type: 'geojson',
@@ -230,6 +236,10 @@ export async function createMap({ container, boundariesUrl, describe, onCountryC
       'line-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.15, 1],
     },
   });
+
+  // Frame the whole warped world rather than guessing a centre and zoom, which
+  // would be wrong the moment the projection or the viewport changed.
+  map.fitBounds(WARPED_BOUNDS, { padding: 12, duration: 0, animate: false });
 
   // --- Interaction ---------------------------------------------------------
 

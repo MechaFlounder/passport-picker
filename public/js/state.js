@@ -245,8 +245,20 @@ export function createState({ isPassport, onChange }) {
       emit('popstate');
     },
 
-    /** Put the initial state in the history entry so the first back works. */
+    /**
+     * Read the URL and publish the starting state.
+     *
+     * The URL is parsed *here*, not when the state object is built. `isPassport`
+     * needs the country list, and the state object is constructed at module
+     * load — before that list has been fetched. Parsing early meant every code
+     * in the URL failed validation, the selection came out empty, and the
+     * `replaceState` below then wrote that empty state back over the address
+     * bar: opening a shared `?p=DE,IE,US` link silently landed on the picker
+     * with nothing chosen, which defeats the entire point of putting the state
+     * in the URL. Call this once the country list is in hand.
+     */
     prime() {
+      current = fromUrl(globalThis.location?.href ?? '/', isPassport);
       globalThis.history?.replaceState(snapshot(), '', toUrl(current));
       emit('init');
     },

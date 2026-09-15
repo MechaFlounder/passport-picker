@@ -236,6 +236,25 @@ export function resolveCell(passport, destination, data, meta, overrides, seen) 
     }
     guard.add(destination);
     const inherited = resolveCell(passport, country.parent, data, meta, overrides, guard);
+
+    // Your country's territories are not your country. Puerto Rico inheriting
+    // the United States would otherwise resolve to `citizen`, and an American
+    // holding one passport would be told they are a citizen of six places.
+    // Free movement is the honest description: domestic travel, no formality,
+    // no time limit — and it holds even for territories outside the parent's
+    // wider free-movement area, because a French national may settle in Nouméa
+    // whatever an EU citizen from elsewhere may do.
+    if (inherited.status === 'citizen') {
+      return {
+        status: 'fom',
+        stay: UNLIMITED,
+        label: `Free movement (${meta.countries?.[country.parent]?.name ?? country.parent} territory)`,
+        note: country.note,
+        source: 'inherit',
+        inheritedFrom: country.parent,
+      };
+    }
+
     return {
       ...demoteIfOutsideBloc(inherited, country),
       note: country.note ?? inherited.note,

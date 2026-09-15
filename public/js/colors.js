@@ -22,6 +22,37 @@ const FALLBACK = [
 /** Below this ΔE the two colours read as "the same" on a map. */
 const MIN_DISTANCE = 26;
 
+/**
+ * Brand colours have to survive being a country fill, and the extremes do not.
+ *
+ * Germany's flag colour is black. Used as a map fill it swallows the borders,
+ * turns the hatch into grey noise, and reads as "void" rather than "Germany" —
+ * and since Germany wins most destinations for anyone holding it, that is most
+ * of the world. White and near-white fail the other way, disappearing into the
+ * ocean. Both fall through to the country's secondary colour, then the palette.
+ *
+ * The band is deliberately narrow at the dark end. A deep navy like the United
+ * States' #0A3161 sits at a relative luminance of about 0.031 and works fine;
+ * black is 0. Only the genuinely lightless and the near-white are rejected.
+ */
+const USABLE_LUMINANCE = { min: 0.015, max: 0.85 };
+
+function relativeLuminance(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  const channel = (c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
+}
+
+/** @returns {boolean} whether this colour works as a country fill. */
+export function usableAsFill(hex) {
+  const l = relativeLuminance(hex);
+  return l !== null && l >= USABLE_LUMINANCE.min && l <= USABLE_LUMINANCE.max;
+}
+
 function hexToRgb(hex) {
   const h = String(hex).replace('#', '');
   const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
@@ -101,7 +132,7 @@ export function assignColors(passports, meta) {
     let chosen = null;
 
     for (const candidate of [brand?.primary, brand?.secondary]) {
-      if (candidate && farEnough(candidate)) { chosen = candidate; break; }
+      if (candidate && usableAsFill(candidate) && farEnough(candidate)) { chosen = candidate; break; }
     }
 
     if (!chosen) {

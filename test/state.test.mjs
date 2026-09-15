@@ -264,3 +264,47 @@ test('snapshots are copies, not live references', () => {
     assert.deepEqual(h.state.selected, ['US', 'IE'], 'mutating a snapshot must not affect state');
   } finally { h.restore(); }
 });
+
+test('a shared link survives the country list arriving late', async (t) => {
+  // The state object is built at module load, before countries.json has been
+  // fetched — so at construction every ISO code fails validation. If the URL is
+  // parsed then, the selection comes out empty and prime() writes that empty
+  // state back over the address bar, quietly discarding a shared link.
+  const saved = { location: globalThis.location, history: globalThis.history };
+  const urls = [];
+  globalThis.location = { href: 'https://x/?p=DE,IE,US&v=best', search: '?p=DE,IE,US&v=best' };
+  globalThis.history = {
+    pushState(_s, _t, url) { urls.push(url); },
+    replaceState(_s, _t, url) { urls.push(url); },
+  };
+
+  try {
+    let countriesLoaded = false;
+    const changes = [];
+    const state = createState({
+      isPassport: (c) => countriesLoaded && KNOWN.has(c),
+      onChange: (snap, reason) => changes.push({ snap, reason }),
+    });
+
+    await t.test('nothing is known before the list arrives', () => {
+      assert.deepEqual(state.selected, [], 'cannot validate codes yet');
+    });
+
+    countriesLoaded = true;
+    state.prime();
+
+    await t.test('prime re-reads the URL once the list is there', () => {
+      assert.deepEqual(state.selected, ['DE', 'IE', 'US']);
+      assert.equal(state.view, 'best');
+      assert.equal(state.screen, 'map');
+    });
+
+    await t.test('and does not overwrite the address bar with an empty state', () => {
+      assert.equal(urls.at(-1), '?p=DE,IE,US&v=best');
+      assert.notEqual(urls.at(-1), '/', 'this is what the bug did');
+    });
+  } finally {
+    globalThis.location = saved.location;
+    globalThis.history = saved.history;
+  }
+});

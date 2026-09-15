@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { assignColors, distance, contrastingInk } from '../public/js/colors.js';
+import { assignColors, distance, contrastingInk, usableAsFill } from '../public/js/colors.js';
 
 const meta = JSON.parse(
   fs.readFileSync(path.join(import.meta.dirname, '..', 'public/data/countries.json'), 'utf8'),
@@ -91,4 +91,41 @@ test('assignColors copes with countries that have no brand colours', () => {
 
 test('assignColors returns nothing for an empty selection', () => {
   assert.deepEqual(assignColors([], meta), {});
+});
+
+test('extreme brand colours are rejected as map fills', async (t) => {
+  await t.test('black and white are unusable', () => {
+    assert.equal(usableAsFill('#000000'), false);
+    assert.equal(usableAsFill('#FFFFFF'), false);
+    assert.equal(usableAsFill('#0A0A0A'), false);
+    assert.equal(usableAsFill('#FAFAFA'), false);
+  });
+
+  await t.test('ordinary flag colours are fine', () => {
+    for (const hex of ['#B31942', '#0A3161', '#169B62', '#FFCE00', '#009246', '#CF142B']) {
+      assert.equal(usableAsFill(hex), true, hex);
+    }
+  });
+
+  await t.test('Germany does not paint the world black', () => {
+    // Germany's brand primary is #000000. It wins most destinations for anyone
+    // holding it, so taking it literally turned most of the map black, hid the
+    // borders and reduced the tie hatch to grey noise.
+    assert.equal(meta.countries.DE.brand.primary, '#000000', 'fixture assumption');
+
+    const assigned = assignColors(['DE'], meta).DE;
+    assert.notEqual(assigned, '#000000');
+    assert.equal(usableAsFill(assigned), true);
+  });
+
+  await t.test('it falls through to the secondary colour first', () => {
+    assert.equal(assignColors(['DE'], meta).DE, meta.countries.DE.brand.secondary);
+  });
+
+  await t.test('every assigned colour is usable, for every passport', () => {
+    for (const iso of meta.passports) {
+      const hex = assignColors([iso], meta)[iso];
+      assert.equal(usableAsFill(hex), true, `${iso} got ${hex}`);
+    }
+  });
 });

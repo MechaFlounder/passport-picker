@@ -1,57 +1,45 @@
 /**
- * Assigning a colour to each held passport for the best-passport view.
+ * Colours for the best-passport view.
  *
- * Flags are the obvious source — a German reading a German-coloured map does
- * not need a legend — but flag colours collide constantly: half the world's
- * flags are red, and two passports that look alike on the map make the view
- * useless. So a country's own colours are used when they are distinct enough
- * from everything already assigned, and a spaced fallback palette takes over
- * when they are not.
+ * Slots are assigned in fixed order from a validated categorical palette, by the
+ * user's own passport order. Deliberately *not* derived from flags, which was
+ * the first design and the direct cause of the worst bug this view had: half the
+ * world's flags are red, so holding Canada and China produced #FF0000 and
+ * #E6194B — two reds nobody could tell apart. Flag colours are unpredictable,
+ * cannot be validated ahead of time, and change meaning depending on what else
+ * is selected. Identity is carried instead by the legend, the flag strip and the
+ * hover card, all of which name the passport outright.
  *
- * "Distinct enough" is measured in CIELAB rather than RGB, because RGB distance
- * does not match what the eye does: #FF0000 and #00FF00 are as far apart in RGB
- * as #000000 and #0000FF, and obviously not as far apart to look at.
+ * A map is the hardest case for categorical colour: any two countries can share
+ * a border, so every pair has to be separable, not just adjacent ones in a
+ * legend. Validated with the data-viz palette validator under `--pairs all`:
+ *
+ *   3 slots  worst CVD ΔE 9.2, normal-vision 24.0   PASS
+ *   4 slots  worst normal-vision ΔE 13.7            FAIL (yellow vs orange)
+ *   8 slots  worst normal-vision ΔE 7.1             FAIL
+ *
+ * Which is the honest limit: beyond about three passports no palette can carry
+ * identity by colour alone on a choropleth, and none of the re-orderings help.
+ * Past that the view leans on its secondary encodings — the tie hatch, the
+ * clickable legend that dims everything else, the hover card and the destination
+ * list — which is exactly the relief the method requires when separation drops
+ * into the floor band.
  */
-
-/** Ported from the original page, which had the same idea. */
-const FALLBACK = [
-  '#E6194B', '#3CB44B', '#4363D8', '#F58231', '#911EB4',
-  '#008080', '#F032E6', '#9A6324', '#800000', '#000075',
-];
-
-/** Below this ΔE the two colours read as "the same" on a map. */
-const MIN_DISTANCE = 26;
 
 /**
- * Brand colours have to survive being a country fill, and the extremes do not.
- *
- * Germany's flag colour is black. Used as a map fill it swallows the borders,
- * turns the hatch into grey noise, and reads as "void" rather than "Germany" —
- * and since Germany wins most destinations for anyone holding it, that is most
- * of the world. White and near-white fail the other way, disappearing into the
- * ocean. Both fall through to the country's secondary colour, then the palette.
- *
- * The band is deliberately narrow at the dark end. A deep navy like the United
- * States' #0A3161 sits at a relative luminance of about 0.031 and works fine;
- * black is 0. Only the genuinely lightless and the near-white are rejected.
+ * The reference categorical palette, in its validated order. The first three
+ * are the strongest pairwise, so the commonest selections get the clearest map.
  */
-const USABLE_LUMINANCE = { min: 0.015, max: 0.85 };
-
-function relativeLuminance(hex) {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return null;
-  const channel = (c) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
-}
-
-/** @returns {boolean} whether this colour works as a country fill. */
-export function usableAsFill(hex) {
-  const l = relativeLuminance(hex);
-  return l !== null && l >= USABLE_LUMINANCE.min && l <= USABLE_LUMINANCE.max;
-}
+const PALETTE = [
+  '#2a78d6', // blue
+  '#eb6834', // orange
+  '#1baf7a', // aqua
+  '#eda100', // yellow
+  '#e87ba4', // magenta
+  '#008300', // green
+  '#4a3aa7', // violet
+  '#e34948', // red
+];
 
 function hexToRgb(hex) {
   const h = String(hex).replace('#', '');
@@ -111,46 +99,25 @@ export function contrastingInk(hex) {
 }
 
 /**
- * Give every passport a distinguishable colour.
+ * Give every passport a colour.
  *
- * Deterministic: the same passports in the same order always produce the same
- * colours, so a shared link looks identical to whoever opens it.
+ * Deterministic and position-based: the same passports in the same order always
+ * produce the same colours, so a shared link looks identical to whoever opens
+ * it, and reordering the tray to change a tie-break also repaints predictably.
  *
- * @param {string[]} passports    ISO-2, in the user's chosen order
- * @param {object} meta           countries.json
+ * @param {string[]} passports ISO-2, in the user's chosen order
  * @returns {Record<string, string>}
  */
-export function assignColors(passports, meta) {
+export function assignColors(passports) {
   const assigned = {};
-  const used = [];
-  let fallbackIndex = 0;
-
-  const farEnough = (hex) => used.every((taken) => distance(hex, taken) >= MIN_DISTANCE);
-
-  for (const code of passports) {
-    const brand = meta?.countries?.[code]?.brand;
-    let chosen = null;
-
-    for (const candidate of [brand?.primary, brand?.secondary]) {
-      if (candidate && usableAsFill(candidate) && farEnough(candidate)) { chosen = candidate; break; }
-    }
-
-    if (!chosen) {
-      // Walk the fallback palette for something distinct; if the palette is
-      // exhausted take the next entry anyway rather than loop forever.
-      const start = fallbackIndex;
-      do {
-        const candidate = FALLBACK[fallbackIndex % FALLBACK.length];
-        fallbackIndex++;
-        if (farEnough(candidate)) { chosen = candidate; break; }
-      } while (fallbackIndex - start < FALLBACK.length);
-
-      chosen ??= FALLBACK[fallbackIndex++ % FALLBACK.length];
-    }
-
-    assigned[code] = chosen;
-    used.push(chosen);
-  }
-
+  passports.forEach((code, index) => {
+    assigned[code] = PALETTE[index % PALETTE.length];
+  });
   return assigned;
 }
+
+/** The palette, for anything that needs to show or validate it. */
+export const CATEGORICAL_PALETTE = [...PALETTE];
+
+/** Past this many passports, colour alone can no longer carry identity. */
+export const COLOUR_SAFE_LIMIT = 3;

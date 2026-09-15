@@ -86,6 +86,30 @@ CARICOM, Mercosur, the EAC and the CIS are deliberately excluded: their
 arrangements are partial or cover only some nationals, and "visa free" is what
 the feed already says.
 
+### Colour in the best-passport view
+
+Slots come from a validated categorical palette in fixed order, assigned by the
+user's own passport order — not derived from flags. Flag colours were the first
+design and caused the worst bug the view had: half the world's flags are red, so
+holding Canada and China produced `#FF0000` and `#E6194B`, two reds nobody could
+tell apart.
+
+A map is the hardest case for categorical colour, because any two countries can
+share a border and so *every* pair has to separate, not just neighbours in a
+legend. Validated with the data-viz palette validator under `--pairs all`:
+
+| Slots | Worst CVD ΔE | Worst normal-vision ΔE | |
+|---|---|---|---|
+| 3 | 9.2 | 24.0 | pass |
+| 4 | 9.1 | 13.7 | fail — yellow against orange |
+| 8 | 3.2 | 7.1 | fail |
+
+That is the honest limit: past about three passports, no palette carries identity
+by colour alone on a choropleth, and no re-ordering fixes it. Beyond three the
+view leans on its secondary encodings — the tie hatch, the legend that dims
+everything else on click, the hover card and the destination list — which is the
+relief the method requires when separation drops into the floor band.
+
 ### Territories
 
 Places that appear on a map but issue no passport are declared in the territory

@@ -201,7 +201,7 @@ async function ensureData() {
 }
 
 async function onStateChange(snapshot, reason) {
-  passportColors = assignColors(snapshot.selected, meta);
+  passportColors = assignColors(snapshot.selected);
 
   if (reason === 'selection' || reason === 'popstate' || reason === 'init') {
     picker?.sync();

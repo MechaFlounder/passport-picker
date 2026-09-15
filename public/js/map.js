@@ -60,23 +60,39 @@ function whenReady(timeoutMs = 15000) {
 /**
  * Line segments for a seamless 45° hatch on a `size`×`size` tile.
  *
- * Separated from the drawing so it can be tested. The first version of this
- * ran its diagonals from (-size, size) to (size, -size), which on an 8×8 tile
- * clips only the very corner — the resulting texture had 2 of 64 pixels with
- * any alpha in them, so tied countries rendered with no hatch at all and
- * nothing anywhere reported a problem.
+ * Two interleaved families, one light and one dark, because a single tone
+ * cannot survive both ends of the palette. A white hatch reads beautifully over
+ * a mid-green country and vanishes completely over Germany's flag yellow — and
+ * since the passport that wins most destinations is usually the one carrying
+ * most of the ties, that is precisely where it disappeared.
  *
- * @returns {Array<[number, number, number, number]>} [x1, y1, x2, y2]
+ * Separated from the drawing so it can be tested. The first version ran its
+ * diagonals from (-size, size) to (size, -size), which on an 8×8 tile clips only
+ * the corner: the texture came out with 2 of 64 pixels holding any alpha, so
+ * tied countries rendered with no hatch at all and nothing reported a problem.
+ *
+ * @returns {Array<{tone: 'light'|'dark', line: [number, number, number, number]}>}
  */
-export function hatchSegments(size = 8) {
+export function hatchSegments(size = 10) {
+  const half = size / 2;
   return [
-    // The main diagonal, corner to corner.
-    [0, size, size, 0],
-    // The two fragments that let it tile seamlessly.
-    [-1, 1, 1, -1],
-    [size - 1, size + 1, size + 1, size - 1],
+    // The main diagonal, corner to corner, plus the two fragments that let it
+    // tile seamlessly across the corners it misses.
+    { tone: 'light', line: [0, size, size, 0] },
+    { tone: 'light', line: [-1, 1, 1, -1] },
+    { tone: 'light', line: [size - 1, size + 1, size + 1, size - 1] },
+    // Offset by half a period, so light and dark alternate.
+    { tone: 'dark', line: [0, half, half, 0] },
+    { tone: 'dark', line: [half, size, size, half] },
   ];
 }
+
+const HATCH_TONES = {
+  light: 'rgba(255,255,255,0.95)',
+  // Softer than the light pass: it only has to register against pale fills,
+  // and a hard black would read as a border rather than a texture.
+  dark: 'rgba(17,24,39,0.8)',
+};
 
 /**
  * A diagonal hatch, drawn once and reused for every tied country.
@@ -85,23 +101,27 @@ export function hatchSegments(size = 8) {
  * country keeps its identity and the hatch says only "more than one of your
  * passports works here".
  */
-function hatchImage(size = 8) {
+function hatchImage(size = 10) {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
 
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 2;
   ctx.lineCap = 'round';
 
-  ctx.beginPath();
-  for (const [x1, y1, x2, y2] of hatchSegments(size)) {
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+  for (const tone of ['light', 'dark']) {
+    ctx.strokeStyle = HATCH_TONES[tone];
+    ctx.beginPath();
+    for (const segment of hatchSegments(size)) {
+      if (segment.tone !== tone) continue;
+      const [x1, y1, x2, y2] = segment.line;
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
 
   return ctx.getImageData(0, 0, size, size);
 }
@@ -209,7 +229,7 @@ export async function createMap({ container, boundariesUrl, describe, onCountryC
       'fill-opacity': [
         'case',
         ['boolean', ['feature-state', 'dim'], false], 0,
-        ['boolean', ['feature-state', 'tied'], false], 0.55,
+        ['boolean', ['feature-state', 'tied'], false], 0.8,
         0,
       ],
     },
@@ -220,9 +240,13 @@ export async function createMap({ container, boundariesUrl, describe, onCountryC
     type: 'line',
     source: SOURCE,
     paint: {
+      // A light casing under the dark line. Together they read as a border on
+      // any fill: the dark stroke carries pale countries, the light halo
+      // carries dark ones. A single stroke cannot do both, which is why the
+      // first version disappeared over navy and yellow alike.
       'line-color': '#ffffff',
-      'line-width': 1.4,
-      'line-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.15, 0.8],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 0, 2.2, 3, 3, 6, 4.5],
+      'line-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.15, 0.85],
     },
   });
 
@@ -231,15 +255,18 @@ export async function createMap({ container, boundariesUrl, describe, onCountryC
     type: 'line',
     source: SOURCE,
     paint: {
-      'line-color': '#333333',
-      'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 1.5, 0.65],
-      'line-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.15, 1],
+      'line-color': '#1f2937',
+      // Scaled with zoom: a width that reads at world zoom turns into a thick
+      // outline close in, and one tuned for close-in vanishes at world zoom.
+      'line-width': [
+        'interpolate', ['linear'], ['zoom'],
+        0, ['case', ['boolean', ['feature-state', 'hover'], false], 1.6, 0.9],
+        3, ['case', ['boolean', ['feature-state', 'hover'], false], 2.2, 1.2],
+        6, ['case', ['boolean', ['feature-state', 'hover'], false], 3, 1.8],
+      ],
+      'line-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.15, 0.9],
     },
   });
-
-  // Frame the whole warped world rather than guessing a centre and zoom, which
-  // would be wrong the moment the projection or the viewport changed.
-  map.fitBounds(WARPED_BOUNDS, { padding: 12, duration: 0, animate: false });
 
   // --- Interaction ---------------------------------------------------------
 
